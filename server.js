@@ -15,7 +15,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 
-// Smart URL detection: Sandbox if testing, Live if real key
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
     : "https://api-d.squadco.com/transaction/initiate";
@@ -25,12 +24,13 @@ mongoose.connect(MONGODB_URI)
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ==========================================
-// 2. DATABASE SCHEMAS
+// 2. DATABASE SCHEMAS (UPDATED)
 // ==========================================
 const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
     name: { type: String },
-    balance: { type: Number, default: 0 },
+    walletBalance: { type: Number, default: 0 },       // DEPOSITS go here
+    withdrawableBalance: { type: Number, default: 0 }, // EARNINGS go here
     referredBy: { type: String, default: null }
 });
 const User = mongoose.model('User', UserSchema);
@@ -51,26 +51,22 @@ const SHARE_TYPES = {
 // 3. API ROUTES
 // ==========================================
 
-// Get User Balance
+// Get User Balances
 app.get('/api/user/:id', async (req, res) => {
     try {
         let user = await User.findOne({ tgId: req.params.id });
-        if (!user) return res.json({ balance: 0 });
+        if (!user) return res.json({ walletBalance: 0, withdrawableBalance: 0 });
         res.json(user);
     } catch (error) {
         res.status(500).json({ error: "Server error" });
     }
 });
 
-// GENERATE PAYMENT LINK (NEW!)
+// Generate Payment Link
 app.post('/api/fund', async (req, res) => {
     const { userId, amount } = req.body;
-    
-    if (!amount || amount < 100) {
-        return res.status(400).json({ error: "Minimum deposit is ₦100" });
-    }
+    if (!amount || amount < 100) return res.status(400).json({ error: "Minimum deposit is ₦100" });
 
-    // SquadCo requires amounts in Kobo (multiply Naira by 100)
     const amountInKobo = amount * 100;
     const transactionRef = `SP-${userId}-${Date.now()}`;
 
@@ -83,7 +79,7 @@ app.post('/api/fund', async (req, res) => {
             },
             body: JSON.stringify({
                 amount: amountInKobo,
-                email: `user${userId}@sharepoint.com`, // Required placeholder
+                email: `user${userId}@sharepoint.com`, 
                 currency: "NGN",
                 initiate_type: "inline",
                 transaction_ref: transactionRef
@@ -95,11 +91,9 @@ app.post('/api/fund', async (req, res) => {
         if (data.status === 200 && data.data && data.data.checkout_url) {
             res.json({ success: true, checkoutUrl: data.data.checkout_url });
         } else {
-            console.error("Squad Error:", data);
             res.status(400).json({ error: "Failed to generate gateway link." });
         }
     } catch (error) {
-        console.error("Server Error:", error);
         res.status(500).json({ error: "Internal server error." });
     }
 });
@@ -114,15 +108,17 @@ app.post('/api/buy-share', async (req, res) => {
     try {
         let user = await User.findOne({ tgId: userId });
         if (!user) {
-            user = new User({ tgId: userId, name: userName, balance: 0 });
+            user = new User({ tgId: userId, name: userName });
             await user.save();
         }
 
-        if (user.balance < share.cost) {
-            return res.status(400).json({ error: "Insufficient funds. Please fund your wallet." });
+        // Check against WALLET BALANCE specifically
+        if (user.walletBalance < share.cost) {
+            return res.status(400).json({ error: "Insufficient Wallet Balance. Please deposit funds." });
         }
 
-        user.balance -= share.cost;
+        // Deduct from Wallet Balance
+        user.walletBalance -= share.cost;
         await user.save();
 
         const newInvestment = new Investment({
@@ -133,15 +129,16 @@ app.post('/api/buy-share', async (req, res) => {
         });
         await newInvestment.save();
 
+        // Give Upfront Bonus to Referrer's WITHDRAWABLE balance
         if (user.referredBy) {
             const referrer = await User.findOne({ tgId: user.referredBy });
             if (referrer) {
-                referrer.balance += (share.cost * 0.05);
+                referrer.withdrawableBalance += (share.cost * 0.05);
                 await referrer.save();
             }
         }
 
-        res.json({ success: true, newBalance: user.balance });
+        res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: "Transaction failed" });
     }
@@ -157,7 +154,8 @@ cron.schedule('0 0 * * *', async () => {
         for (let inv of activeInvs) {
             const buyer = await User.findOne({ tgId: inv.userId });
             if (buyer) {
-                buyer.balance += inv.dailyReturn;
+                // Add daily earnings to WITHDRAWABLE BALANCE
+                buyer.withdrawableBalance += inv.dailyReturn;
                 inv.daysLeft -= 1;
                 await buyer.save();
                 await inv.save();
@@ -165,7 +163,8 @@ cron.schedule('0 0 * * *', async () => {
                 if (buyer.referredBy) {
                     const referrer = await User.findOne({ tgId: buyer.referredBy });
                     if (referrer) {
-                        referrer.balance += (inv.dailyReturn * 0.10);
+                        // Add referral yield to WITHDRAWABLE BALANCE
+                        referrer.withdrawableBalance += (inv.dailyReturn * 0.10);
                         await referrer.save();
                     }
                 }
