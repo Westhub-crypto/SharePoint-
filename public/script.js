@@ -1,6 +1,3 @@
-// ==========================================
-// 1. TELEGRAM WEB APP INITIALIZATION
-// ==========================================
 const tg = window.Telegram.WebApp;
 
 tg.ready();
@@ -10,15 +7,11 @@ const user = tg.initDataUnsafe?.user;
 const USER_ID = user ? user.id.toString() : "12345"; 
 const USER_NAME = user ? user.first_name : "Test User";
 
-// ==========================================
-// 2. UI NAVIGATION LOGIC
-// ==========================================
+// UI NAVIGATION
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
     document.getElementById('dashboardView').classList.add('hidden');
     document.getElementById('depositView').classList.remove('hidden');
-    
-    // Show Telegram's native Back Button
     tg.BackButton.show();
     tg.BackButton.onClick(showDashboard);
 }
@@ -27,21 +20,16 @@ function showDashboard() {
     tg.HapticFeedback.impactOccurred('light');
     document.getElementById('depositView').classList.add('hidden');
     document.getElementById('dashboardView').classList.remove('hidden');
-    
-    // Hide Telegram's native Back Button
     tg.BackButton.hide();
     tg.BackButton.offClick(showDashboard);
 }
 
-// Fills the input box when a preset button is tapped
 function setAmount(amount) {
     tg.HapticFeedback.selectionChanged();
     document.getElementById('depositAmount').value = amount;
 }
 
-// ==========================================
-// 3. APP STARTUP & DATA FETCHING
-// ==========================================
+// APP STARTUP & DATA FETCHING
 document.addEventListener('DOMContentLoaded', () => {
     fetchUserData();
 });
@@ -51,21 +39,37 @@ async function fetchUserData() {
         const response = await fetch(`/api/user/${USER_ID}`);
         const data = await response.json();
         
-        // Extract the two separate balances
         let wBal = data.walletBalance !== undefined ? data.walletBalance : 0;
         let earnBal = data.withdrawableBalance !== undefined ? data.withdrawableBalance : 0;
         
-        // Update the screen
         document.getElementById('walletBalanceDisplay').innerText = `₦${wBal.toLocaleString()}`;
         document.getElementById('withdrawableBalanceDisplay').innerText = `₦${earnBal.toLocaleString()}`;
+
+        // RENDER ACTIVE INVESTMENTS
+        const invList = document.getElementById('investmentsList');
+        if (data.investments && data.investments.length > 0) {
+            invList.innerHTML = data.investments.map(inv => `
+                <div class="bg-gray-800 rounded-xl p-4 border border-gray-700 shadow flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white uppercase tracking-wide">${inv.shareType}</h4>
+                        <p class="text-sm text-green-400 font-medium">+₦${inv.dailyReturn} / day</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-2xl font-bold text-blue-400 leading-none">${inv.daysLeft}</p>
+                        <p class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Days Left</p>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            invList.innerHTML = `<p class="text-gray-500 text-sm text-center italic mt-2 border border-dashed border-gray-700 p-4 rounded-xl">No active shares yet.</p>`;
+        }
+
     } catch (error) {
         console.error("Error fetching data", error);
     }
 }
 
-// ==========================================
-// 4. BUY SHARE LOGIC
-// ==========================================
+// BUY SHARE LOGIC
 function buyShare(shareType) {
     tg.showConfirm(`Are you sure you want to buy the ${shareType} share for ₦10,000?`, async (confirmed) => {
         if (!confirmed) return;
@@ -87,7 +91,7 @@ function buyShare(shareType) {
             if (result.success) {
                 tg.HapticFeedback.notificationOccurred('success');
                 tg.showAlert("✅ Share purchased successfully!");
-                fetchUserData(); // Refresh balances immediately
+                fetchUserData(); // Refresh balances AND investments automatically
             } else {
                 tg.HapticFeedback.notificationOccurred('error');
                 tg.showAlert(`❌ Error: ${result.error}`);
@@ -99,9 +103,7 @@ function buyShare(shareType) {
     });
 }
 
-// ==========================================
-// 5. FUND WALLET LOGIC
-// ==========================================
+// FUND WALLET LOGIC
 async function fundWallet() {
     const amountInput = document.getElementById('depositAmount').value;
     const amount = Number(amountInput);
@@ -139,4 +141,4 @@ async function fundWallet() {
         btn.disabled = false;
         tg.showAlert("Network error. Please wait a moment and try again.");
     }
-    }
+        }
