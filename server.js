@@ -3,64 +3,67 @@ const cors = require('cors');
 const cron = require('node-cron');
 const path = require('path');
 const mongoose = require('mongoose');
-const crypto = require('crypto'); // Built-in security tool
-const TelegramBot = require('node-telegram-bot-api'); // New bot tool
+const crypto = require('crypto');
+const TelegramBot = require('node-telegram-bot-api'); 
 
 const app = express();
-
-// 1. ADVANCED SECURITY: Save exact raw body for Webhook verification
-app.use(express.json({
-    verify: (req, res, buf) => {
-        req.rawBody = buf;
-    }
-}));
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
-// 2. DATABASE & SECRETS
+// 1. DATABASE & SECRETS
 // ==========================================
 const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const ADMIN_ID = "8067627422";
+const ADMIN_ID = "8067627422"; 
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
     : "https://api-d.squadco.com/transaction/initiate";
 
-// Initialize the Telegram Bot listener
 let bot;
-if (BOT_TOKEN) {
-    bot = new TelegramBot(BOT_TOKEN, { polling: true });
-}
+if (BOT_TOKEN) bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ Connected to MongoDB!'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ==========================================
-// 3. DATABASE SCHEMAS
+// 2. DATABASE SCHEMAS
 // ==========================================
 const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
-    name: { type: String },
+    username: { type: String }, // Added for Login
+    password: { type: String }, // Added for Login
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
-    referredBy: { type: String, default: null }
+    referredBy: { type: String, default: null },
+    isBanned: { type: Boolean, default: false } // Added for Admin Ban
 });
 const User = mongoose.model('User', UserSchema);
 
+const PlanSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    icon: { type: String, default: "fa-gem" }, // FontAwesome icon class
+    cost: { type: Number, required: true },
+    dailyReturn: { type: Number, required: true },
+    duration: { type: Number, required: true }, // Total days
+    isActive: { type: Boolean, default: true }
+});
+const Plan = mongoose.model('Plan', PlanSchema);
+
 const InvestmentSchema = new mongoose.Schema({
     userId: { type: String, required: true },
-    shareType: { type: String, required: true },
+    planId: { type: String, required: true },
+    shareName: { type: String, required: true },
     dailyReturn: { type: Number, required: true },
     daysLeft: { type: Number, required: true }
 });
 const Investment = mongoose.model('Investment', InvestmentSchema);
 
 const WithdrawalSchema = new mongoose.Schema({
-    // NEW: Generates a short, easy-to-type ID like W-12345
     refId: { type: String, default: () => 'W-' + Math.floor(10000 + Math.random() * 90000) },
     userId: { type: String, required: true },
     userName: { type: String },
@@ -73,35 +76,158 @@ const WithdrawalSchema = new mongoose.Schema({
 });
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
-const SHARE_TYPES = {
-    "silver": { cost: 10000, dailyReturn: 200, duration: 30 }
-};
+// ==========================================
+// 3. AUTHENTICATION & APP LOAD ROUTES
+// ==========================================
+
+// Register / Check User Status
+app.post('/api/auth/check', async (req, res) => {
+    const { tgId } = req.body;
+    try {
+        const user = await User.findOne({ tgId });
+        if (!user) return res.json({ status: "needs_registration" });
+        if (user.isBanned) return res.json({ status: "banned" });
+        res.json({ status: "needs_login" });
+    } catch (err) { res.status(500).json({ error: "Server error" }); }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+    const { tgId, username, password, referredBy } = req.body;
+    try {
+        let user = await User.findOne({ tgId });
+        if (user) return res.status(400).json({ error: "Already registered" });
+        
+        user = new User({ tgId, username, password, referredBy });
+        await user.save();
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Server error" }); }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    const { tgId, password } = req.body;
+    try {
+        const user = await User.findOne({ tgId });
+        if (!user) return res.status(400).json({ error: "User not found" });
+        if (user.isBanned) return res.status(403).json({ error: "Account Banned." });
+        if (user.password !== password) return res.status(401).json({ error: "Invalid Password" });
+        
+        res.json({ success: true, user });
+    } catch (err) { res.status(500).json({ error: "Server error" }); }
+});
+
+// Load Dashboard Data (Plans, Investments, Balances)
+app.get('/api/dashboard/:tgId', async (req, res) => {
+    try {
+        const user = await User.findOne({ tgId: req.params.tgId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const plans = await Plan.find({ isActive: true });
+        const investments = await Investment.find({ userId: req.params.tgId, daysLeft: { $gt: 0 } });
+        const referralCount = await User.countDocuments({ referredBy: req.params.tgId });
+
+        res.json({
+            user: { walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, username: user.username },
+            plans, investments, referralCount
+        });
+    } catch (err) { res.status(500).json({ error: "Server error" }); }
+});
 
 // ==========================================
-// 4. API ROUTES
+// 4. ADMIN ROUTES
 // ==========================================
-app.post('/api/login', async (req, res) => {
-    const { tgId, name, referredBy } = req.body;
+const isAdmin = (req, res, next) => {
+    if (req.headers['x-admin-id'] !== ADMIN_ID) return res.status(403).json({ error: "Unauthorized" });
+    next();
+};
+
+app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
-        let user = await User.findOne({ tgId: tgId });
-        if (!user) {
-            user = new User({ tgId, name, referredBy });
-            await user.save();
+        const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
+        const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
+        res.json({ users, pendingWithdrawals });
+    } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
+});
+
+app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
+    const { name, cost, dailyReturn, duration, icon } = req.body;
+    try {
+        const plan = new Plan({ name, cost, dailyReturn, duration, icon });
+        await plan.save();
+        res.json({ success: true, plan });
+    } catch (err) { res.status(500).json({ error: "Failed to add plan" }); }
+});
+
+app.post('/api/admin/ban', isAdmin, async (req, res) => {
+    const { tgId, banStatus } = req.body;
+    try {
+        await User.findOneAndUpdate({ tgId }, { isBanned: banStatus });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to update user" }); }
+});
+
+app.post('/api/admin/withdraw/resolve', isAdmin, async (req, res) => {
+    const { refId, action } = req.body; // action: 'approve' or 'reject'
+    try {
+        const request = await Withdrawal.findOne({ refId, status: "Pending" });
+        if (!request) return res.status(404).json({ error: "Request not found or already resolved" });
+
+        request.status = action === 'approve' ? "Paid" : "Rejected";
+        await request.save();
+
+        if (action === 'reject') {
+            // Refund the user
+            const user = await User.findOne({ tgId: request.userId });
+            if (user) {
+                user.withdrawableBalance += request.amount;
+                await user.save();
+            }
         }
-        let activeInvs = await Investment.find({ userId: tgId, daysLeft: { $gt: 0 } });
-        let referralCount = await User.countDocuments({ referredBy: tgId });
-        res.json({
-            walletBalance: user.walletBalance,
-            withdrawableBalance: user.withdrawableBalance,
-            investments: activeInvs,
-            referrals: referralCount
+
+        if (bot) {
+            const msg = action === 'approve' 
+                ? `🎉 *Withdrawal Approved!*\n\n₦${request.amount.toLocaleString()} has been sent to your bank.`
+                : `❌ *Withdrawal Rejected.*\n\nYour request for ₦${request.amount.toLocaleString()} was declined and refunded to your balance.`;
+            bot.sendMessage(request.userId, msg, { parse_mode: 'Markdown' });
+        }
+
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to resolve withdrawal" }); }
+});
+
+// ==========================================
+// 5. TRANSACTIONS
+// ==========================================
+app.post('/api/buy-share', async (req, res) => {
+    const { userId, planId } = req.body;
+    try {
+        const plan = await Plan.findById(planId);
+        if (!plan || !plan.isActive) return res.status(400).json({ error: "Invalid Plan" });
+
+        let user = await User.findOne({ tgId: userId });
+        if (user.walletBalance < plan.cost) return res.status(400).json({ error: "Insufficient Wallet Balance." });
+
+        user.walletBalance -= plan.cost;
+        await user.save();
+
+        const newInvestment = new Investment({
+            userId, planId, shareName: plan.name, dailyReturn: plan.dailyReturn, daysLeft: plan.duration
         });
-    } catch (error) { res.status(500).json({ error: "Server error" }); }
+        await newInvestment.save();
+
+        if (user.referredBy) {
+            const referrer = await User.findOne({ tgId: user.referredBy });
+            if (referrer) {
+                referrer.withdrawableBalance += (plan.cost * 0.05);
+                await referrer.save();
+            }
+        }
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ error: "Transaction failed" }); }
 });
 
 app.post('/api/withdraw', async (req, res) => {
     const { userId, userName, amount, bankName, accNo, accName } = req.body;
-    if (!amount || amount < 1000) return res.status(400).json({ error: "Minimum withdrawal is ₦1,000" });
+    if (!amount || amount < 1000) return res.status(400).json({ error: "Minimum is ₦1,000" });
 
     try {
         const user = await User.findOne({ tgId: userId });
@@ -112,20 +238,6 @@ app.post('/api/withdraw', async (req, res) => {
 
         const request = new Withdrawal({ userId, userName, amount, bankName, accountNumber: accNo, accountName: accName });
         await request.save();
-
-        // Send a formatted admin alert with the exact bot command to approve it
-        if (bot && ADMIN_ID) {
-            const adminMsg = `🚨 *New Withdrawal Request*\n\n` +
-                             `🆔 *ID:* ${request.refId}\n` +
-                             `👤 *User:* ${userName}\n` +
-                             `💰 *Amount:* ₦${amount.toLocaleString()}\n` +
-                             `🏦 *Bank:* ${bankName}\n` +
-                             `🔢 *Acc:* \`${accNo}\`\n` +
-                             `📛 *Name:* ${accName}\n\n` +
-                             `✅ To approve and notify user, reply with:\n\`/paid ${request.refId}\``;
-            
-            bot.sendMessage(ADMIN_ID, adminMsg, { parse_mode: 'Markdown' });
-        }
 
         res.json({ success: true, newBalance: user.withdrawableBalance });
     } catch (error) { res.status(500).json({ error: "Withdrawal failed" }); }
@@ -141,126 +253,44 @@ app.post('/api/fund', async (req, res) => {
             headers: { 'Authorization': `Bearer ${SQUAD_SECRET_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 amount: amount * 100,
-                email: `user${userId}@sharepoint.com`, 
-                currency: "NGN",
-                initiate_type: "inline",
+                email: `user${userId}@sharepoint.com`, currency: "NGN", initiate_type: "inline",
                 transaction_ref: `SP-${userId}-${Date.now()}`
             })
         });
 
         const data = await response.json();
-        if (data.status === 200 && data.data && data.data.checkout_url) res.json({ success: true, checkoutUrl: data.data.checkout_url });
+        if (data.status === 200 && data.data) res.json({ success: true, checkoutUrl: data.data.checkout_url });
         else res.status(400).json({ error: "Failed to generate gateway link." });
     } catch (error) { res.status(500).json({ error: "Internal server error." }); }
 });
 
-app.post('/api/buy-share', async (req, res) => {
-    const { userId, shareType } = req.body;
-    const share = SHARE_TYPES[shareType];
-    if (!share) return res.status(400).json({ error: "Invalid share type" });
-
-    try {
-        let user = await User.findOne({ tgId: userId });
-        if (!user) return res.status(400).json({ error: "User not found" });
-        if (user.walletBalance < share.cost) return res.status(400).json({ error: "Insufficient Wallet Balance." });
-
-        user.walletBalance -= share.cost;
-        await user.save();
-
-        const newInvestment = new Investment({ userId, shareType, dailyReturn: share.dailyReturn, daysLeft: share.duration });
-        await newInvestment.save();
-
-        if (user.referredBy) {
-            const referrer = await User.findOne({ tgId: user.referredBy });
-            if (referrer) {
-                referrer.withdrawableBalance += (share.cost * 0.05);
-                await referrer.save();
-            }
-        }
-        res.json({ success: true });
-    } catch (error) { res.status(500).json({ error: "Transaction failed" }); }
-});
-
-// ==========================================
-// 5. SECURE SQUADCO WEBHOOK
-// ==========================================
 app.post('/webhook/squad', async (req, res) => {
-    // SECURITY CHECK: Verify the cryptographic signature from SquadCo
     const squadSignature = req.headers['x-squad-encrypted-body'];
     if (!squadSignature) return res.status(400).send("Missing Signature");
 
-    const hash = crypto.createHmac('sha512', SQUAD_SECRET_KEY)
-                       .update(req.rawBody)
-                       .digest('hex').toUpperCase();
-
-    if (hash !== squadSignature.toUpperCase()) {
-        console.error("🚨 WARNING: Fake Webhook Attempt Blocked!");
-        return res.status(401).send("Invalid Signature");
-    }
+    const hash = crypto.createHmac('sha512', SQUAD_SECRET_KEY).update(req.rawBody).digest('hex').toUpperCase();
+    if (hash !== squadSignature.toUpperCase()) return res.status(401).send("Invalid Signature");
 
     res.status(200).send("OK");
     
     try {
-        const eventType = req.body.Event;
-        const txData = req.body.Body;
-
-        if (eventType === 'charge_successful' && txData) {
-            const amountInNaira = txData.amount / 100;
-            const parts = txData.transaction_ref.split('-');
-            
+        const { Event, Body } = req.body;
+        if (Event === 'charge_successful' && Body) {
+            const amountInNaira = Body.amount / 100;
+            const parts = Body.transaction_ref.split('-');
             if (parts[0] === 'SP' && parts[1]) {
                 const tgId = parts[1];
                 const user = await User.findOne({ tgId: tgId });
                 if (user) {
                     user.walletBalance += amountInNaira;
                     await user.save();
-
-                    if (bot) {
-                        const message = `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} has been added to your Wallet Balance.`;
-                        bot.sendMessage(tgId, message, { parse_mode: 'Markdown' });
-                    }
+                    if (bot) bot.sendMessage(tgId, `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} added to your Wallet.`, { parse_mode: 'Markdown' });
                 }
             }
         }
     } catch (error) { console.error("Webhook Error:", error); }
 });
 
-// ==========================================
-// 6. ADMIN BOT COMMANDS
-// ==========================================
-if (bot) {
-    bot.onText(/\/paid (.+)/, async (msg, match) => {
-        // ONLY YOU can trigger this command
-        if (msg.chat.id.toString() !== ADMIN_ID) return;
-        
-        const refId = match[1].trim();
-
-        try {
-            const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
-            if (!withdrawal) {
-                return bot.sendMessage(ADMIN_ID, `❌ Could not find a pending request with ID: ${refId}`);
-            }
-
-            // Mark it as Paid in the database
-            withdrawal.status = "Paid";
-            await withdrawal.save();
-
-            // Tell you it worked
-            bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} officially marked as PAID!`);
-
-            // Tell the user their money is arriving
-            const userMsg = `🎉 *Withdrawal Successful!*\n\nYour request for ₦${withdrawal.amount.toLocaleString()} has been processed and sent to your bank.`;
-            bot.sendMessage(withdrawal.userId, userMsg, { parse_mode: 'Markdown' });
-
-        } catch (err) {
-            bot.sendMessage(ADMIN_ID, `❌ Database error occurred.`);
-        }
-    });
-}
-
-// ==========================================
-// 7. DAILY YIELD CRON JOB
-// ==========================================
 cron.schedule('0 0 * * *', async () => {
     try {
         const activeInvs = await Investment.find({ daysLeft: { $gt: 0 } });
