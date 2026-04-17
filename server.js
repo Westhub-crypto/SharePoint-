@@ -10,9 +10,15 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
-// 1. DATABASE CONNECTION
+// 1. DATABASE & SECRETS
 // ==========================================
 const MONGODB_URI = process.env.MONGODB_URI;
+const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
+
+// Smart URL detection: Sandbox if testing, Live if real key
+const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
+    ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
+    : "https://api-d.squadco.com/transaction/initiate";
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ Connected to MongoDB!'))
@@ -25,8 +31,7 @@ const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
     name: { type: String },
     balance: { type: Number, default: 0 },
-    referredBy: { type: String, default: null },
-    virtualAccount: { type: String, default: null }
+    referredBy: { type: String, default: null }
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -50,13 +55,52 @@ const SHARE_TYPES = {
 app.get('/api/user/:id', async (req, res) => {
     try {
         let user = await User.findOne({ tgId: req.params.id });
-        if (!user) {
-            // Return 0 if user doesn't exist yet, so frontend doesn't crash
-            return res.json({ balance: 0 });
-        }
+        if (!user) return res.json({ balance: 0 });
         res.json(user);
     } catch (error) {
         res.status(500).json({ error: "Server error" });
+    }
+});
+
+// GENERATE PAYMENT LINK (NEW!)
+app.post('/api/fund', async (req, res) => {
+    const { userId, amount } = req.body;
+    
+    if (!amount || amount < 100) {
+        return res.status(400).json({ error: "Minimum deposit is ₦100" });
+    }
+
+    // SquadCo requires amounts in Kobo (multiply Naira by 100)
+    const amountInKobo = amount * 100;
+    const transactionRef = `SP-${userId}-${Date.now()}`;
+
+    try {
+        const response = await fetch(SQUAD_INITIATE_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SQUAD_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amount: amountInKobo,
+                email: `user${userId}@sharepoint.com`, // Required placeholder
+                currency: "NGN",
+                initiate_type: "inline",
+                transaction_ref: transactionRef
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.status === 200 && data.data && data.data.checkout_url) {
+            res.json({ success: true, checkoutUrl: data.data.checkout_url });
+        } else {
+            console.error("Squad Error:", data);
+            res.status(400).json({ error: "Failed to generate gateway link." });
+        }
+    } catch (error) {
+        console.error("Server Error:", error);
+        res.status(500).json({ error: "Internal server error." });
     }
 });
 
@@ -68,7 +112,6 @@ app.post('/api/buy-share', async (req, res) => {
     if (!share) return res.status(400).json({ error: "Invalid share type" });
 
     try {
-        // Find user, or create them if it's their very first interaction
         let user = await User.findOne({ tgId: userId });
         if (!user) {
             user = new User({ tgId: userId, name: userName, balance: 0 });
@@ -79,11 +122,9 @@ app.post('/api/buy-share', async (req, res) => {
             return res.status(400).json({ error: "Insufficient funds. Please fund your wallet." });
         }
 
-        // Deduct cost and save user
         user.balance -= share.cost;
         await user.save();
 
-        // Create the investment
         const newInvestment = new Investment({
             userId: userId,
             shareType: shareType,
@@ -92,7 +133,6 @@ app.post('/api/buy-share', async (req, res) => {
         });
         await newInvestment.save();
 
-        // Upfront Referral Bonus (5%)
         if (user.referredBy) {
             const referrer = await User.findOne({ tgId: user.referredBy });
             if (referrer) {
@@ -108,27 +148,20 @@ app.post('/api/buy-share', async (req, res) => {
 });
 
 // ==========================================
-// 4. DAILY YIELD CRON JOB (Runs at Midnight)
+// 4. DAILY YIELD CRON JOB
 // ==========================================
 cron.schedule('0 0 * * *', async () => {
     console.log("💰 Running daily yield distribution...");
-    
     try {
-        // Find all active investments
         const activeInvs = await Investment.find({ daysLeft: { $gt: 0 } });
-
         for (let inv of activeInvs) {
             const buyer = await User.findOne({ tgId: inv.userId });
-            
             if (buyer) {
-                // Pay Buyer
                 buyer.balance += inv.dailyReturn;
                 inv.daysLeft -= 1;
-                
                 await buyer.save();
                 await inv.save();
 
-                // Pay Referrer (10% of daily yield)
                 if (buyer.referredBy) {
                     const referrer = await User.findOne({ tgId: buyer.referredBy });
                     if (referrer) {
@@ -138,10 +171,7 @@ cron.schedule('0 0 * * *', async () => {
                 }
             }
         }
-
-        // Delete any investments that reached 0 days
         await Investment.deleteMany({ daysLeft: { $lte: 0 } });
-        console.log("✅ Daily distribution complete!");
     } catch (error) {
         console.error("❌ Cron Job Error:", error);
     }
