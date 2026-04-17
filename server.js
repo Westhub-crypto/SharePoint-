@@ -15,6 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const ADMIN_ID = "8067627422"; // Your Admin Telegram ID is now active!
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -32,7 +33,7 @@ const UserSchema = new mongoose.Schema({
     name: { type: String },
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
-    referredBy: { type: String, default: null } // Stores who invited them!
+    referredBy: { type: String, default: null }
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -44,6 +45,18 @@ const InvestmentSchema = new mongoose.Schema({
 });
 const Investment = mongoose.model('Investment', InvestmentSchema);
 
+const WithdrawalSchema = new mongoose.Schema({
+    userId: { type: String, required: true },
+    userName: { type: String },
+    amount: { type: Number, required: true },
+    bankName: { type: String, required: true },
+    accountNumber: { type: String, required: true },
+    accountName: { type: String, required: true },
+    status: { type: String, default: "Pending" },
+    date: { type: Date, default: Date.now }
+});
+const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
+
 const SHARE_TYPES = {
     "silver": { cost: 10000, dailyReturn: 200, duration: 30 }
 };
@@ -52,37 +65,69 @@ const SHARE_TYPES = {
 // 3. API ROUTES
 // ==========================================
 
-// NEW SMART LOGIN (Handles Referrals & Stats)
+// SMART LOGIN
 app.post('/api/login', async (req, res) => {
     const { tgId, name, referredBy } = req.body;
-    
     try {
         let user = await User.findOne({ tgId: tgId });
-        
-        // If brand new user, save them and who referred them
         if (!user) {
             user = new User({ tgId, name, referredBy });
             await user.save();
         }
-
-        // Fetch their active investments
-        let activeInvestments = await Investment.find({ userId: tgId, daysLeft: { $gt: 0 } });
-        
-        // Count how many people they have successfully referred
+        let activeInvs = await Investment.find({ userId: tgId, daysLeft: { $gt: 0 } });
         let referralCount = await User.countDocuments({ referredBy: tgId });
-
         res.json({
             walletBalance: user.walletBalance,
             withdrawableBalance: user.withdrawableBalance,
-            investments: activeInvestments,
+            investments: activeInvs,
             referrals: referralCount
         });
+    } catch (error) { res.status(500).json({ error: "Server error" }); }
+});
+
+// WITHDRAWAL REQUEST
+app.post('/api/withdraw', async (req, res) => {
+    const { userId, userName, amount, bankName, accNo, accName } = req.body;
+
+    if (!amount || amount < 1000) return res.status(400).json({ error: "Minimum withdrawal is ₦1,000" });
+
+    try {
+        const user = await User.findOne({ tgId: userId });
+        if (!user || user.withdrawableBalance < amount) {
+            return res.status(400).json({ error: "Insufficient Withdrawable Balance" });
+        }
+
+        user.withdrawableBalance -= amount;
+        await user.save();
+
+        const request = new Withdrawal({
+            userId, userName, amount, bankName, accountNumber: accNo, accountName: accName
+        });
+        await request.save();
+
+        // ALERT THE ADMIN
+        if (BOT_TOKEN && ADMIN_ID) {
+            const adminMsg = `🚨 *New Withdrawal Request*\n\n` +
+                             `👤 User: ${userName} (${userId})\n` +
+                             `💰 Amount: ₦${amount.toLocaleString()}\n` +
+                             `🏦 Bank: ${bankName}\n` +
+                             `🔢 Acc: ${accNo}\n` +
+                             `📛 Name: ${accName}`;
+            
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: ADMIN_ID, text: adminMsg, parse_mode: 'Markdown' })
+            });
+        }
+
+        res.json({ success: true, newBalance: user.withdrawableBalance });
     } catch (error) {
-        res.status(500).json({ error: "Server error" });
+        res.status(500).json({ error: "Withdrawal failed" });
     }
 });
 
-// Generate Payment Link
+// GENERATE SQUADCO PAYMENT LINK
 app.post('/api/fund', async (req, res) => {
     const { userId, amount } = req.body;
     if (!amount || amount < 100) return res.status(400).json({ error: "Minimum deposit is ₦100" });
@@ -117,7 +162,7 @@ app.post('/api/fund', async (req, res) => {
     }
 });
 
-// Buy a Share
+// BUY SHARE
 app.post('/api/buy-share', async (req, res) => {
     const { userId, shareType } = req.body;
     const share = SHARE_TYPES[shareType];
@@ -143,7 +188,6 @@ app.post('/api/buy-share', async (req, res) => {
         });
         await newInvestment.save();
 
-        // UPFRONT REFERRAL BONUS: Give 5% to the person who referred them!
         if (user.referredBy) {
             const referrer = await User.findOne({ tgId: user.referredBy });
             if (referrer) {
@@ -209,7 +253,6 @@ cron.schedule('0 0 * * *', async () => {
                 await buyer.save();
                 await inv.save();
 
-                // DAILY REFERRAL BONUS: Give 10% of yield to referrer!
                 if (buyer.referredBy) {
                     const referrer = await User.findOne({ tgId: buyer.referredBy });
                     if (referrer) {
