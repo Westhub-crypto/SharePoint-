@@ -2,105 +2,150 @@ const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-
-// Serve the frontend files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- MOCK DATABASE ---
-let users = {
-    "12345": { id: "12345", name: "Godwin", balance: 50000, referredBy: "99999", virtualAccount: "0123456789" },
-    "99999": { id: "99999", name: "Promoter", balance: 0, referredBy: null, virtualAccount: null }
-};
-let activeInvestments = [];
+// ==========================================
+// 1. DATABASE CONNECTION
+// ==========================================
+const MONGODB_URI = process.env.MONGODB_URI;
+
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ Connected to MongoDB!'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+// ==========================================
+// 2. DATABASE SCHEMAS
+// ==========================================
+const UserSchema = new mongoose.Schema({
+    tgId: { type: String, required: true, unique: true },
+    name: { type: String },
+    balance: { type: Number, default: 0 },
+    referredBy: { type: String, default: null },
+    virtualAccount: { type: String, default: null }
+});
+const User = mongoose.model('User', UserSchema);
+
+const InvestmentSchema = new mongoose.Schema({
+    userId: { type: String, required: true },
+    shareType: { type: String, required: true },
+    dailyReturn: { type: Number, required: true },
+    daysLeft: { type: Number, required: true }
+});
+const Investment = mongoose.model('Investment', InvestmentSchema);
 
 const SHARE_TYPES = {
     "silver": { cost: 10000, dailyReturn: 200, duration: 30 }
 };
 
-// --- SQUADCO WEBHOOK (Phase 2) ---
-app.post('/webhook/squad', (req, res) => {
-    // In production, verify SquadCo signature here first!
-    const { event, data } = req.body;
+// ==========================================
+// 3. API ROUTES
+// ==========================================
 
-    if (event === 'charge.completed') {
-        const amount = data.amount / 100; // SquadCo sends amounts in kobo
-        const virtualAccount = data.virtual_account_number;
-
-        // Find user and credit wallet
-        let user = Object.values(users).find(u => u.virtualAccount === virtualAccount);
-        if (user) {
-            user.balance += amount;
-            console.log(`Credited ${amount} to ${user.name}`);
-            // Here you would trigger a Telegram Bot message to the user
+// Get User Balance
+app.get('/api/user/:id', async (req, res) => {
+    try {
+        let user = await User.findOne({ tgId: req.params.id });
+        if (!user) {
+            // Return 0 if user doesn't exist yet, so frontend doesn't crash
+            return res.json({ balance: 0 });
         }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: "Server error" });
     }
-    res.status(200).send('Webhook received');
 });
 
-// --- BUY SHARE & UPFRONT REFERRAL (Phase 1) ---
-app.post('/api/buy-share', (req, res) => {
-    const { userId, shareType } = req.body;
-    const user = users[userId];
+// Buy a Share
+app.post('/api/buy-share', async (req, res) => {
+    const { userId, userName, shareType } = req.body;
     const share = SHARE_TYPES[shareType];
 
-    if (!user || !share) return res.status(400).json({ error: "Invalid request" });
-    if (user.balance < share.cost) return res.status(400).json({ error: "Insufficient funds" });
+    if (!share) return res.status(400).json({ error: "Invalid share type" });
 
-    // 1. Deduct Cost
-    user.balance -= share.cost;
-
-    // 2. Create Investment
-    activeInvestments.push({
-        userId: userId,
-        shareType: shareType,
-        dailyReturn: share.dailyReturn,
-        daysLeft: share.duration
-    });
-
-    // 3. Upfront Referral Payout (e.g., 5% of cost)
-    if (user.referredBy && users[user.referredBy]) {
-        const bonus = share.cost * 0.05;
-        users[user.referredBy].balance += bonus;
-        console.log(`Paid upfront bonus of ${bonus} to referrer ${user.referredBy}`);
-    }
-
-    res.json({ success: true, newBalance: user.balance, message: "Share purchased!" });
-});
-
-// --- DAILY YIELD CRON JOB ---
-// Runs at midnight every day
-cron.schedule('0 0 * * *', () => {
-    console.log("Running daily yield distribution...");
-    
-    for (let i = activeInvestments.length - 1; i >= 0; i--) {
-        let inv = activeInvestments[i];
-        let buyer = users[inv.userId];
-
-        if (inv.daysLeft > 0) {
-            // Pay Buyer
-            buyer.balance += inv.dailyReturn;
-            inv.daysLeft--;
-
-            // Pay Referrer (e.g., 10% of daily yield)
-            if (buyer.referredBy && users[buyer.referredBy]) {
-                const yieldBonus = inv.dailyReturn * 0.10;
-                users[buyer.referredBy].balance += yieldBonus;
-            }
-        } else {
-            // Remove completed investment
-            activeInvestments.splice(i, 1);
+    try {
+        // Find user, or create them if it's their very first interaction
+        let user = await User.findOne({ tgId: userId });
+        if (!user) {
+            user = new User({ tgId: userId, name: userName, balance: 0 });
+            await user.save();
         }
+
+        if (user.balance < share.cost) {
+            return res.status(400).json({ error: "Insufficient funds. Please fund your wallet." });
+        }
+
+        // Deduct cost and save user
+        user.balance -= share.cost;
+        await user.save();
+
+        // Create the investment
+        const newInvestment = new Investment({
+            userId: userId,
+            shareType: shareType,
+            dailyReturn: share.dailyReturn,
+            daysLeft: share.duration
+        });
+        await newInvestment.save();
+
+        // Upfront Referral Bonus (5%)
+        if (user.referredBy) {
+            const referrer = await User.findOne({ tgId: user.referredBy });
+            if (referrer) {
+                referrer.balance += (share.cost * 0.05);
+                await referrer.save();
+            }
+        }
+
+        res.json({ success: true, newBalance: user.balance });
+    } catch (error) {
+        res.status(500).json({ error: "Transaction failed" });
     }
 });
 
-// Endpoint to fetch user data for the frontend
-app.get('/api/user/:id', (req, res) => {
-    res.json(users[req.params.id] || { error: "User not found" });
+// ==========================================
+// 4. DAILY YIELD CRON JOB (Runs at Midnight)
+// ==========================================
+cron.schedule('0 0 * * *', async () => {
+    console.log("💰 Running daily yield distribution...");
+    
+    try {
+        // Find all active investments
+        const activeInvs = await Investment.find({ daysLeft: { $gt: 0 } });
+
+        for (let inv of activeInvs) {
+            const buyer = await User.findOne({ tgId: inv.userId });
+            
+            if (buyer) {
+                // Pay Buyer
+                buyer.balance += inv.dailyReturn;
+                inv.daysLeft -= 1;
+                
+                await buyer.save();
+                await inv.save();
+
+                // Pay Referrer (10% of daily yield)
+                if (buyer.referredBy) {
+                    const referrer = await User.findOne({ tgId: buyer.referredBy });
+                    if (referrer) {
+                        referrer.balance += (inv.dailyReturn * 0.10);
+                        await referrer.save();
+                    }
+                }
+            }
+        }
+
+        // Delete any investments that reached 0 days
+        await Investment.deleteMany({ daysLeft: { $lte: 0 } });
+        console.log("✅ Daily distribution complete!");
+    } catch (error) {
+        console.error("❌ Cron Job Error:", error);
+    }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
