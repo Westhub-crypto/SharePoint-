@@ -11,14 +11,14 @@ const USER_ID = user ? user.id.toString() : "12345";
 const USER_NAME = user ? user.first_name : "Test User";
 
 // ==========================================
-// 2. UI NAVIGATION LOGIC (THE "PAGES")
+// 2. UI NAVIGATION LOGIC
 // ==========================================
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
     document.getElementById('dashboardView').classList.add('hidden');
     document.getElementById('depositView').classList.remove('hidden');
     
-    // Show Telegram's native Back Button at the top of the screen
+    // Show Telegram's native Back Button
     tg.BackButton.show();
     tg.BackButton.onClick(showDashboard);
 }
@@ -51,12 +51,13 @@ async function fetchUserData() {
         const response = await fetch(`/api/user/${USER_ID}`);
         const data = await response.json();
         
-        // Temporarily, we display the same balance in both places 
-        // until we update the backend database to split them
-        let bal = data.balance !== undefined ? data.balance : 0;
+        // Extract the two separate balances
+        let wBal = data.walletBalance !== undefined ? data.walletBalance : 0;
+        let earnBal = data.withdrawableBalance !== undefined ? data.withdrawableBalance : 0;
         
-        document.getElementById('walletBalanceDisplay').innerText = `₦${bal.toLocaleString()}`;
-        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${bal.toLocaleString()}`;
+        // Update the screen
+        document.getElementById('walletBalanceDisplay').innerText = `₦${wBal.toLocaleString()}`;
+        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${earnBal.toLocaleString()}`;
     } catch (error) {
         console.error("Error fetching data", error);
     }
@@ -86,7 +87,7 @@ function buyShare(shareType) {
             if (result.success) {
                 tg.HapticFeedback.notificationOccurred('success');
                 tg.showAlert("✅ Share purchased successfully!");
-                fetchUserData(); // Refresh balances
+                fetchUserData(); // Refresh balances immediately
             } else {
                 tg.HapticFeedback.notificationOccurred('error');
                 tg.showAlert(`❌ Error: ${result.error}`);
@@ -138,4 +139,4 @@ async function fundWallet() {
         btn.disabled = false;
         tg.showAlert("Network error. Please wait a moment and try again.");
     }
-            }
+    }
