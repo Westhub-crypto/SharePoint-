@@ -1,6 +1,3 @@
-// ==========================================
-// 1. TELEGRAM SETUP
-// ==========================================
 const tg = window.Telegram.WebApp;
 
 tg.ready();
@@ -10,38 +7,38 @@ const user = tg.initDataUnsafe?.user;
 const USER_ID = user ? user.id.toString() : "12345"; 
 const USER_NAME = user ? user.first_name : "Test User";
 
-// ==========================================
-// 2. NAVIGATION LOGIC (TABS & PAGES)
-// ==========================================
+// Look for a referral code if they clicked a friend's link!
+const REFERRED_BY = tg.initDataUnsafe?.start_param || null;
+
+// Unique Referral Link Generator
+const BOT_USERNAME = "SharePoint_official_bot"; // Change this if your bot has a different username
+const MY_REF_LINK = `https://t.me/${BOT_USERNAME}?start=${USER_ID}`;
+
+// NAVIGATION LOGIC
 function switchTab(tabId) {
     tg.HapticFeedback.selectionChanged();
     
-    // Hide all main views
     document.getElementById('dashboardView').classList.add('hidden');
     document.getElementById('portfolioView').classList.add('hidden');
+    document.getElementById('referralView').classList.add('hidden');
     document.getElementById('depositView').classList.add('hidden');
     
-    // Reset tab colors
     document.getElementById('tab-dashboard').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
     document.getElementById('tab-portfolio').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
+    document.getElementById('tab-referral').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
     
-    // Show selected view and highlight tab
     document.getElementById(tabId + 'View').classList.remove('hidden');
     document.getElementById('tab-' + tabId).className = "flex flex-col items-center text-blue-400 transition drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]";
 }
 
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
-    
-    // Hide everything and the bottom nav
     document.getElementById('dashboardView').classList.add('hidden');
     document.getElementById('portfolioView').classList.add('hidden');
-    document.getElementById('bottomNav').classList.add('hidden'); // Hide tab bar during deposit
-    
-    // Show deposit page
+    document.getElementById('referralView').classList.add('hidden');
+    document.getElementById('bottomNav').classList.add('hidden'); 
     document.getElementById('depositView').classList.remove('hidden');
     
-    // Activate Telegram native back button
     tg.BackButton.show();
     tg.BackButton.onClick(() => {
         document.getElementById('depositView').classList.add('hidden');
@@ -56,35 +53,38 @@ function setAmount(amount) {
     document.getElementById('depositAmount').value = amount;
 }
 
-// ==========================================
-// 3. APP STARTUP & DATA FETCHING
-// ==========================================
+// APP STARTUP & SMART LOGIN
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('userNameDisplay').innerText = USER_NAME;
+    document.getElementById('refLinkText').innerText = MY_REF_LINK;
     fetchUserData();
 });
 
 async function fetchUserData() {
     try {
-        const response = await fetch(`/api/user/${USER_ID}`);
+        // We use our new /api/login endpoint to pass the referral code!
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tgId: USER_ID, name: USER_NAME, referredBy: REFERRED_BY })
+        });
+        
         const data = await response.json();
         
-        let wBal = data.walletBalance !== undefined ? data.walletBalance : 0;
-        let earnBal = data.withdrawableBalance !== undefined ? data.withdrawableBalance : 0;
+        let wBal = data.walletBalance || 0;
+        let earnBal = data.withdrawableBalance || 0;
+        let refCount = data.referrals || 0;
         
         document.getElementById('walletBalanceDisplay').innerText = `₦${wBal.toLocaleString()}`;
         document.getElementById('withdrawableBalanceDisplay').innerText = `₦${earnBal.toLocaleString()}`;
+        document.getElementById('referralCountDisplay').innerText = refCount;
 
-        // RENDER PORTFOLIO (WITH TOTAL EARNED CALCULATIONS)
+        // RENDER PORTFOLIO
         const invList = document.getElementById('investmentsList');
         if (data.investments && data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => {
-                
-                // Calculate how much this specific share has earned
-                // Assuming standard duration is 30 days
                 const daysPassed = 30 - inv.daysLeft;
                 const totalEarnedSoFar = daysPassed * inv.dailyReturn;
-                
                 return `
                 <div class="bg-white/5 backdrop-blur-lg rounded-3xl p-5 border border-white/10 shadow-xl relative overflow-hidden">
                     <div class="flex justify-between items-center mb-4">
@@ -102,80 +102,81 @@ async function fetchUserData() {
                             <p class="text-[10px] text-gray-400 uppercase tracking-widest">Days Left</p>
                         </div>
                     </div>
-                    
                     <div class="bg-black/30 rounded-xl p-3 border border-white/5 flex justify-between items-center">
                         <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Earned</span>
                         <span class="text-emerald-400 font-bold text-lg">₦${totalEarnedSoFar.toLocaleString()}</span>
                     </div>
-                </div>
-            `}).join('');
+                </div>`
+            }).join('');
         } else {
             invList.innerHTML = `
                 <div class="bg-white/5 border border-dashed border-white/20 p-8 rounded-3xl text-center">
                     <i class="fa-solid fa-box-open text-3xl text-gray-600 mb-3"></i>
                     <p class="text-gray-400 text-sm">You have no active investments.</p>
-                    <button onclick="switchTab('dashboard')" class="mt-4 text-blue-400 text-sm font-bold">Explore Shares <i class="fa-solid fa-arrow-right text-xs"></i></button>
                 </div>`;
         }
-
     } catch (error) {
         console.error("Error fetching data", error);
     }
 }
 
-// ==========================================
-// 4. BUY LOGIC
-// ==========================================
+// REFERRAL ACTIONS
+function copyRefLink() {
+    tg.HapticFeedback.impactOccurred('medium');
+    
+    // Create a temporary hidden input to copy text (works on all mobile devices)
+    const tempInput = document.createElement("input");
+    tempInput.value = MY_REF_LINK;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand("copy");
+    document.body.removeChild(tempInput);
+    
+    tg.showAlert("✅ Link copied! Send it to your friends to earn bonuses.");
+}
+
+function shareLink() {
+    tg.HapticFeedback.impactOccurred('light');
+    const shareText = `Hey! I'm earning daily with SharePoint. Join using my link and get started: ${MY_REF_LINK}`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(MY_REF_LINK)}&text=${encodeURIComponent('Join me on SharePoint!')}`;
+    tg.openTelegramLink(shareUrl);
+}
+
+// BUY & FUND LOGIC
 function buyShare(shareType) {
-    tg.showConfirm(`Are you sure you want to buy the ${shareType} share for ₦10,000?`, async (confirmed) => {
+    tg.showConfirm(`Buy ${shareType} share for ₦10,000?`, async (confirmed) => {
         if (!confirmed) return;
-
-        tg.MainButton.text = "Processing Transaction...";
-        tg.MainButton.show();
-        tg.MainButton.showProgress();
-
+        tg.MainButton.text = "Processing..."; tg.MainButton.show(); tg.MainButton.showProgress();
         try {
             const response = await fetch('/api/buy-share', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, shareType: shareType })
+                body: JSON.stringify({ userId: USER_ID, shareType: shareType })
             });
-            
             const result = await response.json();
-            tg.MainButton.hideProgress(); tg.MainButton.hide();
-
+            tg.MainButton.hide();
             if (result.success) {
                 tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert("✅ Share purchased successfully! Check your Portfolio tab.");
+                tg.showAlert("✅ Share purchased successfully!");
                 fetchUserData(); 
             } else {
                 tg.HapticFeedback.notificationOccurred('error');
                 tg.showAlert(`❌ Error: ${result.error}`);
             }
         } catch (error) {
-            tg.MainButton.hideProgress(); tg.MainButton.hide();
-            tg.showAlert("Transaction failed. Please check your connection.");
+            tg.MainButton.hide(); tg.showAlert("Transaction failed.");
         }
     });
 }
 
-// ==========================================
-// 5. DEPOSIT LOGIC
-// ==========================================
 async function fundWallet() {
-    const amountInput = document.getElementById('depositAmount').value;
-    const amount = Number(amountInput);
+    const amount = Number(document.getElementById('depositAmount').value);
     const btn = document.getElementById('generateLinkBtn');
-
-    if (!amount || amount < 100) {
-        tg.showAlert("Please enter a valid amount (Minimum ₦100).");
-        return;
-    }
-
+    if (!amount || amount < 100) { tg.showAlert("Min ₦100."); return; }
+    
     tg.HapticFeedback.impactOccurred('medium');
     const originalText = btn.innerText;
-    btn.innerText = "⏳ Generating Link...";
-    btn.disabled = true; 
+    btn.innerText = "⏳ Generating..."; btn.disabled = true; 
 
     try {
         const response = await fetch('/api/fund', {
@@ -183,20 +184,12 @@ async function fundWallet() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: USER_ID, amount: amount })
         });
-        
         const result = await response.json();
-        
-        btn.innerText = originalText;
-        btn.disabled = false;
+        btn.innerText = originalText; btn.disabled = false;
 
-        if (result.success) {
-            tg.openLink(result.checkoutUrl);
-        } else {
-            tg.showAlert(`❌ Error: ${result.error}`);
-        }
+        if (result.success) tg.openLink(result.checkoutUrl);
+        else tg.showAlert(`❌ Error: ${result.error}`);
     } catch (error) {
-        btn.innerText = originalText;
-        btn.disabled = false;
-        tg.showAlert("Network error. Please try again.");
+        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
     }
-                          }
+}
