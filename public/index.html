@@ -9,34 +9,61 @@
 </head>
 <body class="bg-gray-900 text-white font-sans antialiased p-4 pb-10">
 
-    <div class="bg-gray-800 rounded-2xl p-6 mb-6 shadow-lg text-center mt-4 border border-gray-700">
-        <h2 class="text-gray-400 text-sm uppercase tracking-wider mb-1">Total Balance</h2>
-        <h1 class="text-4xl font-bold text-green-400" id="balanceDisplay">₦0</h1>
+    <div id="dashboardView" class="block">
         
-        <div class="mt-6 bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
-            <label class="block text-left text-xs text-gray-400 mb-2 font-semibold tracking-wide">DEPOSIT AMOUNT (₦)</label>
-            <input type="number" id="depositAmount" placeholder="e.g. 10000" class="w-full bg-gray-800 text-white text-lg rounded-lg p-3 outline-none border border-gray-600 focus:border-blue-500 transition mb-4 placeholder-gray-500">
+        <div class="grid grid-cols-2 gap-3 mb-5 mt-2">
+            <div class="bg-gray-800 rounded-2xl p-4 shadow-lg border border-gray-700 flex flex-col justify-center">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Wallet Balance</p>
+                <h2 class="text-2xl font-bold text-white" id="walletBalanceDisplay">₦0</h2>
+            </div>
             
-            <button onclick="fundWallet()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-blue-900/20 active:scale-95">
-                Generate Payment Link
+            <div class="bg-gray-800 rounded-2xl p-4 shadow-lg border border-gray-700 flex flex-col justify-center">
+                <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Withdrawable</p>
+                <h2 class="text-2xl font-bold text-green-400" id="withdrawableBalanceDisplay">₦0</h2>
+            </div>
+        </div>
+
+        <button onclick="showDepositPage()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-blue-900/20 active:scale-95 mb-8">
+            Fund Wallet
+        </button>
+
+        <h3 class="text-xl font-bold mb-4 px-2">Available Shares</h3>
+        <div class="bg-gray-800 rounded-2xl p-5 shadow-lg flex justify-between items-center border border-gray-700">
+            <div>
+                <h4 class="text-lg font-bold text-white">Silver Share</h4>
+                <p class="text-sm text-gray-400 mt-1">Cost: ₦10,000</p>
+                <p class="text-sm text-green-400 font-medium">Earn: ₦200 / day</p>
+                <p class="text-xs text-gray-500 mt-1">Duration: 30 Days</p>
+            </div>
+            <button onclick="buyShare('silver')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 px-6 rounded-xl transition duration-200 shadow-lg shadow-green-900/20 active:scale-95">
+                Buy
             </button>
         </div>
     </div>
 
-    <h3 class="text-xl font-bold mb-4 px-2">Available Shares</h3>
-    
-    <div class="bg-gray-800 rounded-2xl p-5 shadow-lg flex justify-between items-center border border-gray-700">
-        <div>
-            <h4 class="text-lg font-bold text-white">Silver Share</h4>
-            <p class="text-sm text-gray-400 mt-1">Cost: ₦10,000</p>
-            <p class="text-sm text-green-400 font-medium">Earn: ₦200 / day</p>
-            <p class="text-xs text-gray-500 mt-1">Duration: 30 Days</p>
+    <div id="depositView" class="hidden mt-2">
+        <h2 class="text-2xl font-bold text-white mb-6 text-center">Fund Your Wallet</h2>
+        
+        <p class="text-xs text-gray-400 mb-3 ml-1 font-semibold tracking-wide">SELECT AMOUNT (₦)</p>
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <button onclick="setAmount(5000)" class="bg-gray-800 border border-gray-600 py-3 rounded-xl font-bold active:bg-gray-700 transition">5,000</button>
+            <button onclick="setAmount(10000)" class="bg-gray-800 border border-gray-600 py-3 rounded-xl font-bold active:bg-gray-700 transition">10,000</button>
+            <button onclick="setAmount(20000)" class="bg-gray-800 border border-gray-600 py-3 rounded-xl font-bold active:bg-gray-700 transition">20,000</button>
+            <button onclick="setAmount(50000)" class="bg-gray-800 border border-gray-600 py-3 rounded-xl font-bold active:bg-gray-700 transition">50,000</button>
+            <button onclick="setAmount(100000)" class="bg-gray-800 border border-gray-600 py-3 rounded-xl font-bold active:bg-gray-700 transition">100,000</button>
+            <button onclick="setAmount(250000)" class="bg-gray-800 border border-gray-600 py-3 rounded-xl font-bold active:bg-gray-700 transition">250,000</button>
         </div>
-        <button onclick="buyShare('silver')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 px-6 rounded-xl transition duration-200 shadow-lg shadow-green-900/20 active:scale-95">
-            Buy
-        </button>
+
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-inner">
+            <label class="block text-left text-xs text-gray-400 mb-2 font-semibold tracking-wide">OR ENTER CUSTOM AMOUNT (₦)</label>
+            <input type="number" id="depositAmount" placeholder="e.g. 15000" class="w-full bg-gray-900 text-white text-xl font-bold rounded-lg p-4 outline-none border border-gray-600 focus:border-blue-500 transition mb-4 placeholder-gray-600">
+            
+            <button id="generateLinkBtn" onclick="fundWallet()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition duration-200 shadow-lg shadow-blue-900/20 active:scale-95 text-lg">
+                Proceed to Payment
+            </button>
+        </div>
     </div>
 
     <script src="script.js"></script>
 </body>
-                </html>
+    </html>
