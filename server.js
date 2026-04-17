@@ -14,6 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ==========================================
 const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""; // Added Bot Token
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -24,13 +25,13 @@ mongoose.connect(MONGODB_URI)
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ==========================================
-// 2. DATABASE SCHEMAS (UPDATED)
+// 2. DATABASE SCHEMAS
 // ==========================================
 const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
     name: { type: String },
-    walletBalance: { type: Number, default: 0 },       // DEPOSITS go here
-    withdrawableBalance: { type: Number, default: 0 }, // EARNINGS go here
+    walletBalance: { type: Number, default: 0 },       
+    withdrawableBalance: { type: Number, default: 0 }, 
     referredBy: { type: String, default: null }
 });
 const User = mongoose.model('User', UserSchema);
@@ -68,6 +69,7 @@ app.post('/api/fund', async (req, res) => {
     if (!amount || amount < 100) return res.status(400).json({ error: "Minimum deposit is ₦100" });
 
     const amountInKobo = amount * 100;
+    // We attach the Telegram ID to the transaction reference so the webhook knows who paid!
     const transactionRef = `SP-${userId}-${Date.now()}`;
 
     try {
@@ -112,12 +114,10 @@ app.post('/api/buy-share', async (req, res) => {
             await user.save();
         }
 
-        // Check against WALLET BALANCE specifically
         if (user.walletBalance < share.cost) {
             return res.status(400).json({ error: "Insufficient Wallet Balance. Please deposit funds." });
         }
 
-        // Deduct from Wallet Balance
         user.walletBalance -= share.cost;
         await user.save();
 
@@ -129,7 +129,6 @@ app.post('/api/buy-share', async (req, res) => {
         });
         await newInvestment.save();
 
-        // Give Upfront Bonus to Referrer's WITHDRAWABLE balance
         if (user.referredBy) {
             const referrer = await User.findOne({ tgId: user.referredBy });
             if (referrer) {
@@ -145,16 +144,62 @@ app.post('/api/buy-share', async (req, res) => {
 });
 
 // ==========================================
-// 4. DAILY YIELD CRON JOB
+// 4. SQUADCO WEBHOOK LISTENER (NEW!)
+// ==========================================
+app.post('/webhook/squad', async (req, res) => {
+    // 1. Instantly tell SquadCo we received the message so they stop trying to send it
+    res.status(200).send("OK");
+
+    try {
+        const eventType = req.body.Event;
+        const txData = req.body.Body;
+
+        // Check if the payment was actually successful
+        if (eventType === 'charge_successful' && txData) {
+            const txRef = txData.transaction_ref; // e.g., "SP-123456789-17000000"
+            const amountInNaira = txData.amount / 100; // Convert Kobo back to Naira
+
+            // Extract the Telegram ID from the transaction reference
+            const parts = txRef.split('-');
+            if (parts[0] === 'SP' && parts[1]) {
+                const tgId = parts[1];
+
+                // Find the user and add the money!
+                const user = await User.findOne({ tgId: tgId });
+                if (user) {
+                    user.walletBalance += amountInNaira;
+                    await user.save();
+
+                    // Instantly text the user via Telegram
+                    if (BOT_TOKEN) {
+                        const message = `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} has been added to your Wallet Balance.`;
+                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chat_id: tgId,
+                                text: message,
+                                parse_mode: 'Markdown'
+                            })
+                        });
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Webhook Error:", error);
+    }
+});
+
+// ==========================================
+// 5. DAILY YIELD CRON JOB
 // ==========================================
 cron.schedule('0 0 * * *', async () => {
-    console.log("💰 Running daily yield distribution...");
     try {
         const activeInvs = await Investment.find({ daysLeft: { $gt: 0 } });
         for (let inv of activeInvs) {
             const buyer = await User.findOne({ tgId: inv.userId });
             if (buyer) {
-                // Add daily earnings to WITHDRAWABLE BALANCE
                 buyer.withdrawableBalance += inv.dailyReturn;
                 inv.daysLeft -= 1;
                 await buyer.save();
@@ -163,7 +208,6 @@ cron.schedule('0 0 * * *', async () => {
                 if (buyer.referredBy) {
                     const referrer = await User.findOne({ tgId: buyer.referredBy });
                     if (referrer) {
-                        // Add referral yield to WITHDRAWABLE BALANCE
                         referrer.withdrawableBalance += (inv.dailyReturn * 0.10);
                         await referrer.save();
                     }
