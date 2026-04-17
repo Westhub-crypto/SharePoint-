@@ -14,20 +14,20 @@ let currentAuthMode = "login";
 // ==========================================
 // 1. BOOT SEQUENCE & SECURITY PURGE
 // ==========================================
-window.onload = async () => {
+// We wrap this in a function and call it IMMEDIATELY so it never gets stuck waiting on Telegram.
+async function startApp() {
     // SECURITY PURGE: If the user is NOT the admin, physically delete the HTML from their app.
     if (USER_ID !== ADMIN_ID) {
         const adminViewElement = document.getElementById('adminView');
         const adminTabElement = document.getElementById('tab-admin');
-        if (adminViewElement) adminViewElement.remove(); // Deletes it forever
-        if (adminTabElement) adminTabElement.remove();   // Deletes it forever
+        if (adminViewElement) adminViewElement.remove(); 
+        if (adminTabElement) adminTabElement.remove();   
     } else {
         // If it IS you, unhide the button and adjust nav spacing
         const adminTab = document.getElementById('tab-admin');
         if (adminTab) {
             adminTab.classList.remove('hidden');
             adminTab.classList.add('flex');
-            // Adjust widths to fit 5 buttons instead of 4
             document.querySelectorAll('#navFlexContainer button').forEach(btn => {
                 btn.classList.remove('w-1/4');
                 btn.classList.add('w-1/5');
@@ -75,7 +75,10 @@ window.onload = async () => {
         document.getElementById('authForm').innerHTML = `<button onclick="window.location.reload()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl active:scale-95">Tap to Retry</button>`;
         document.getElementById('authForm').classList.remove('hidden');
     }
-};
+}
+
+// EXECUTE THE BOOT SEQUENCE INSTANTLY
+startApp();
 
 async function submitAuth() {
     const password = document.getElementById('authPassword').value;
@@ -294,7 +297,7 @@ function buyDynamicShare(planId, planName, cost) {
             if (result.success) { 
                 tg.showAlert("✅ Success!"); 
                 loadDashboard(); 
-                switchTab('portfolio'); // Automatically jump to portfolio to see it
+                switchTab('portfolio'); 
             }
             else { tg.showAlert(`❌ ${result.error}`); }
         } catch (e) { tg.MainButton.hide(); tg.showAlert("Failed."); }
@@ -311,7 +314,7 @@ function switchTab(tabId) {
         const tabEl = document.getElementById('tab-' + id);
         if(viewEl) viewEl.classList.add('hidden');
         
-        // Reset inactive tab styles (Admin stays red if inactive)
+        // Reset inactive tab styles
         if(tabEl) {
             if (id === 'admin') tabEl.className = "flex flex-col items-center text-red-500 w-1/5 opacity-50 transition";
             else tabEl.className = `flex flex-col items-center text-gray-500 ${USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4'} transition`;
@@ -405,4 +408,4 @@ async function fundWallet() {
 // WITHDRAWAL
 async function processWithdrawal() {
     const amount = Number(document.getElementById('withdrawAmount').value);
-    cons
+    const bank = document.getElement
