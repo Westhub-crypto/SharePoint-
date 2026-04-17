@@ -3,42 +3,67 @@
 // ==========================================
 const tg = window.Telegram.WebApp;
 
-// Tell Telegram the app is ready and expand to full screen
 tg.ready();
 tg.expand(); 
 
-// Extract the real user data from Telegram
 const user = tg.initDataUnsafe?.user;
-
-// If opened in Telegram, use real ID. Fallback for testing
 const USER_ID = user ? user.id.toString() : "12345"; 
 const USER_NAME = user ? user.first_name : "Test User";
 
 // ==========================================
-// 2. APP STARTUP
+// 2. UI NAVIGATION LOGIC (THE "PAGES")
+// ==========================================
+function showDepositPage() {
+    tg.HapticFeedback.impactOccurred('light');
+    document.getElementById('dashboardView').classList.add('hidden');
+    document.getElementById('depositView').classList.remove('hidden');
+    
+    // Show Telegram's native Back Button at the top of the screen
+    tg.BackButton.show();
+    tg.BackButton.onClick(showDashboard);
+}
+
+function showDashboard() {
+    tg.HapticFeedback.impactOccurred('light');
+    document.getElementById('depositView').classList.add('hidden');
+    document.getElementById('dashboardView').classList.remove('hidden');
+    
+    // Hide Telegram's native Back Button
+    tg.BackButton.hide();
+    tg.BackButton.offClick(showDashboard);
+}
+
+// Fills the input box when a preset button is tapped
+function setAmount(amount) {
+    tg.HapticFeedback.selectionChanged();
+    document.getElementById('depositAmount').value = amount;
+}
+
+// ==========================================
+// 3. APP STARTUP & DATA FETCHING
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     fetchUserData();
 });
 
-// Fetch latest balance from your Render backend
 async function fetchUserData() {
     try {
         const response = await fetch(`/api/user/${USER_ID}`);
         const data = await response.json();
         
-        if(data.balance !== undefined) {
-            document.getElementById('balanceDisplay').innerText = `₦${data.balance.toLocaleString()}`;
-        } else {
-            document.getElementById('balanceDisplay').innerText = `₦0`;
-        }
+        // Temporarily, we display the same balance in both places 
+        // until we update the backend database to split them
+        let bal = data.balance !== undefined ? data.balance : 0;
+        
+        document.getElementById('walletBalanceDisplay').innerText = `₦${bal.toLocaleString()}`;
+        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${bal.toLocaleString()}`;
     } catch (error) {
         console.error("Error fetching data", error);
     }
 }
 
 // ==========================================
-// 3. BUY SHARE LOGIC
+// 4. BUY SHARE LOGIC
 // ==========================================
 function buyShare(shareType) {
     tg.showConfirm(`Are you sure you want to buy the ${shareType} share for ₦10,000?`, async (confirmed) => {
@@ -56,48 +81,40 @@ function buyShare(shareType) {
             });
             
             const result = await response.json();
-            
-            tg.MainButton.hideProgress();
-            tg.MainButton.hide();
+            tg.MainButton.hideProgress(); tg.MainButton.hide();
 
             if (result.success) {
                 tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert("✅ Share purchased successfully! You will now earn daily.");
-                document.getElementById('balanceDisplay').innerText = `₦${result.newBalance.toLocaleString()}`;
+                tg.showAlert("✅ Share purchased successfully!");
+                fetchUserData(); // Refresh balances
             } else {
                 tg.HapticFeedback.notificationOccurred('error');
                 tg.showAlert(`❌ Error: ${result.error}`);
             }
         } catch (error) {
-            tg.MainButton.hideProgress();
-            tg.MainButton.hide();
+            tg.MainButton.hideProgress(); tg.MainButton.hide();
             tg.showAlert("Transaction failed. Please check your connection.");
         }
     });
 }
 
 // ==========================================
-// 4. FUND WALLET LOGIC (UPGRADED WITH VISUAL FEEDBACK)
+// 5. FUND WALLET LOGIC
 // ==========================================
 async function fundWallet() {
     const amountInput = document.getElementById('depositAmount').value;
     const amount = Number(amountInput);
-    
-    // Grab the actual HTML button so we can change its text
-    const btn = document.querySelector('button[onclick="fundWallet()"]');
+    const btn = document.getElementById('generateLinkBtn');
 
     if (!amount || amount < 100) {
         tg.showAlert("Please enter a valid amount (Minimum ₦100).");
         return;
     }
 
-    // Vibrate phone
     tg.HapticFeedback.impactOccurred('medium');
-    
-    // Change button text to show it is working
     const originalText = btn.innerText;
     btn.innerText = "⏳ Generating Link...";
-    btn.disabled = true; // Stop them from clicking it twice
+    btn.disabled = true; 
 
     try {
         const response = await fetch('/api/fund', {
@@ -108,18 +125,15 @@ async function fundWallet() {
         
         const result = await response.json();
         
-        // Reset button text
         btn.innerText = originalText;
         btn.disabled = false;
 
         if (result.success) {
-            // Open the SquadCo payment page securely inside Telegram
             tg.openLink(result.checkoutUrl);
         } else {
             tg.showAlert(`❌ Error: ${result.error}`);
         }
     } catch (error) {
-        // Reset button if the server is sleeping or crashes
         btn.innerText = originalText;
         btn.disabled = false;
         tg.showAlert("Network error. Please wait a moment and try again.");
