@@ -7,15 +7,14 @@ const USER_ID = user ? user.id.toString() : "12345";
 const REFERRED_BY = tg.initDataUnsafe?.start_param || null;
 const BOT_USERNAME = "SharePoint_official_bot"; 
 const MY_REF_LINK = `https://t.me/${BOT_USERNAME}?start=${USER_ID}`;
-const ADMIN_ID = "8067627422"; // The Boss
+const ADMIN_ID = "8067627422"; 
 
-let currentAuthMode = "login"; // or "register"
+let currentAuthMode = "login"; 
 
 // ==========================================
 // 1. BOOT SEQUENCE & AUTHENTICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // Reveal Admin tab if user is the Admin
     if (USER_ID === ADMIN_ID) {
         document.getElementById('tab-admin').classList.remove('hidden');
         document.getElementById('tab-admin').classList.add('flex');
@@ -41,11 +40,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('authTitle').innerText = "Create Account";
             document.getElementById('authSub').innerText = "Set up your login details.";
             document.getElementById('authUsername').classList.remove('hidden');
+            document.getElementById('forgotBtn').classList.add('hidden'); 
         } else {
             currentAuthMode = "login";
             document.getElementById('authTitle').innerText = "Welcome Back";
             document.getElementById('authSub').innerText = "Enter your password to unlock.";
-            document.getElementById('authUsername').classList.add('hidden'); // Only need pass to login
+            document.getElementById('authUsername').classList.add('hidden'); 
+            document.getElementById('forgotBtn').classList.remove('hidden'); 
         }
     } catch (e) { console.error("Auth check failed."); }
 });
@@ -82,8 +83,25 @@ async function submitAuth() {
     } catch (e) { tg.MainButton.hide(); tg.showAlert("Network error."); }
 }
 
+async function forgotPassword() {
+    tg.showConfirm("Send a new temporary password to your Telegram chat?", async (conf) => {
+        if(!conf) return;
+        tg.MainButton.text = "Resetting..."; tg.MainButton.show();
+        try {
+            const res = await fetch('/api/auth/forgot', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({tgId: USER_ID})
+            });
+            const result = await res.json();
+            tg.MainButton.hide();
+            if(result.success) tg.showAlert("✅ New password sent! Check your Telegram messages with the bot.");
+            else tg.showAlert(`❌ ${result.error}`);
+        } catch(e) { tg.MainButton.hide(); tg.showAlert("Network error."); }
+    });
+}
+
 // ==========================================
-// 2. LOAD DASHBOARD (DYNAMIC PLANS)
+// 2. LOAD DASHBOARD & RENDER PLANS
 // ==========================================
 async function loadDashboard() {
     try {
@@ -96,13 +114,12 @@ async function loadDashboard() {
         document.getElementById('referralCountDisplay').innerText = data.referralCount;
         document.getElementById('refLinkText').innerText = MY_REF_LINK;
 
-        // RENDER DYNAMIC PLANS
         const plansList = document.getElementById('dynamicPlansList');
         if (data.plans.length > 0) {
             plansList.innerHTML = data.plans.map(plan => {
                 const totalEarn = plan.dailyReturn * plan.duration;
                 const weeklyEarn = plan.dailyReturn * 7;
-                const monthlyEarn = plan.dailyReturn * 30; // approx
+                const monthlyEarn = plan.dailyReturn * 30; 
 
                 return `
                 <div class="glass-panel rounded-3xl p-5 shadow-xl border border-white/5 relative">
@@ -131,7 +148,6 @@ async function loadDashboard() {
             plansList.innerHTML = `<p class="text-gray-500 text-sm text-center">No plans available right now.</p>`;
         }
 
-        // RENDER PORTFOLIO
         const invList = document.getElementById('investmentsList');
         if (data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => `
@@ -168,7 +184,6 @@ async function loadAdminStats() {
         const res = await fetch('/api/admin/stats', { headers: { 'x-admin-id': ADMIN_ID } });
         const data = await res.json();
 
-        // Render Pending Withdrawals
         document.getElementById('adminWithdrawalList').innerHTML = data.pendingWithdrawals.map(w => `
             <div class="bg-black/40 p-4 rounded-xl border border-red-500/30">
                 <p class="text-xs text-gray-400">ID: ${w.refId}</p>
@@ -181,7 +196,6 @@ async function loadAdminStats() {
             </div>
         `).join('') || `<p class="text-gray-500 text-xs">No pending requests.</p>`;
 
-        // Render Users
         document.getElementById('adminUsersList').innerHTML = data.users.map(u => `
             <div class="bg-black/40 p-3 rounded-xl border border-white/10 flex justify-between items-center">
                 <div>
@@ -255,7 +269,6 @@ function buyDynamicShare(planId, planName, cost) {
     });
 }
 
-// (Navigation helpers for tabs, deposit, and withdraw. Add simple UI modals or redirects here as previously done)
 function switchTab(tabId) {
     tg.HapticFeedback.selectionChanged();
     ['dashboard', 'portfolio', 'referral', 'admin'].forEach(id => {
@@ -268,6 +281,41 @@ function switchTab(tabId) {
     document.getElementById('tab-' + tabId).className = "flex flex-col items-center text-cyan-400 transition drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]";
 }
 
+function showDepositPage() {
+    tg.HapticFeedback.impactOccurred('light');
+    ['dashboardView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+    document.getElementById('depositView').classList.remove('hidden');
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        document.getElementById('depositView').classList.add('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        switchTab('dashboard');
+        tg.BackButton.hide();
+    });
+}
+
+function showWithdrawPage() {
+    tg.HapticFeedback.impactOccurred('light');
+    ['dashboardView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+    document.getElementById('withdrawView').classList.remove('hidden');
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        document.getElementById('withdrawView').classList.add('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        switchTab('dashboard');
+        tg.BackButton.hide();
+    });
+}
+
+function setAmount(amount) {
+    tg.HapticFeedback.selectionChanged();
+    document.getElementById('depositAmount').value = amount;
+}
+
 function copyRefLink() {
     tg.HapticFeedback.impactOccurred('medium');
     const tempInput = document.createElement("input"); tempInput.value = MY_REF_LINK; document.body.appendChild(tempInput);
@@ -277,4 +325,49 @@ function copyRefLink() {
 function shareLink() {
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(MY_REF_LINK)}&text=Join me on SharePoint!`;
     tg.openTelegramLink(shareUrl);
-                                }
+}
+
+async function fundWallet() {
+    const amount = Number(document.getElementById('depositAmount').value);
+    const btn = document.getElementById('generateLinkBtn');
+    if (!amount || amount < 100) { tg.showAlert("Min ₦100."); return; }
+    
+    tg.HapticFeedback.impactOccurred('medium');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Generating..."; btn.disabled = true; 
+
+    try {
+        const response = await fetch('/api/fund', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, amount: amount })
+        });
+        const result = await response.json();
+        btn.innerText = originalText; btn.disabled = false;
+
+        if (result.success) tg.openLink(result.checkoutUrl);
+        else tg.showAlert(`❌ Error: ${result.error}`);
+    } catch (error) {
+        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
+    }
+}
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+    const btn = document.getElementById('withdrawBtn');
+
+    if (!amount || amount < 1000) return tg.showAlert("Min ₦1,000");
+    if (!bank || !accNo || !accName) return tg.showAlert("Fill all fields.");
+
+    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount, bankName: bank, accNo, accName })
+        });
+        const result = await response.json();
+        tg.Main
