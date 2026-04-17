@@ -14,17 +14,29 @@ let currentAuthMode = "login";
 // ==========================================
 // 1. BOOT SEQUENCE & AUTHENTICATION
 // ==========================================
-document.addEventListener('DOMContentLoaded', async () => {
+// Using window.onload is much more reliable on mobile Telegram
+window.onload = async () => {
+    // Show Admin Tab if you are the boss
     if (USER_ID === ADMIN_ID) {
-        document.getElementById('tab-admin').classList.remove('hidden');
-        document.getElementById('tab-admin').classList.add('flex');
+        const adminTab = document.getElementById('tab-admin');
+        if (adminTab) {
+            adminTab.classList.remove('hidden');
+            adminTab.classList.add('flex');
+        }
     }
+
+    document.getElementById('authTitle').innerText = "Waking Server...";
+    document.getElementById('authSub').innerText = "Please wait a moment...";
 
     try {
         const res = await fetch('/api/auth/check', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tgId: USER_ID })
         });
+
+        // If the server is offline or still sleeping, throw an error to catch block
+        if (!res.ok) throw new Error("Server not responding yet.");
+
         const data = await res.json();
 
         if (data.status === "banned") {
@@ -39,17 +51,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentAuthMode = "register";
             document.getElementById('authTitle').innerText = "Create Account";
             document.getElementById('authSub').innerText = "Set up your login details.";
-            document.getElementById('authUsername').classList.remove('hidden');
-            document.getElementById('forgotBtn').classList.add('hidden'); 
+            if(document.getElementById('authUsername')) document.getElementById('authUsername').classList.remove('hidden');
+            if(document.getElementById('forgotBtn')) document.getElementById('forgotBtn').classList.add('hidden'); 
         } else {
             currentAuthMode = "login";
             document.getElementById('authTitle').innerText = "Welcome Back";
             document.getElementById('authSub').innerText = "Enter your password to unlock.";
-            document.getElementById('authUsername').classList.add('hidden'); 
-            document.getElementById('forgotBtn').classList.remove('hidden'); 
+            if(document.getElementById('authUsername')) document.getElementById('authUsername').classList.add('hidden'); 
+            if(document.getElementById('forgotBtn')) document.getElementById('forgotBtn').classList.remove('hidden'); 
         }
-    } catch (e) { console.error("Auth check failed."); }
-});
+    } catch (e) { 
+        console.error("Auth check failed:", e);
+        // This is the FIX! It tells the user the server is sleeping and adds a Retry button.
+        document.getElementById('authTitle').innerText = "Server Sleeping 😴";
+        document.getElementById('authSub').innerText = "The server is waking up. This takes about 30 seconds.";
+        document.getElementById('authForm').innerHTML = `<button onclick="window.location.reload()" class="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-4 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.4)] active:scale-95">Tap to Retry</button>`;
+        document.getElementById('authForm').classList.remove('hidden');
+    }
+};
 
 async function submitAuth() {
     const password = document.getElementById('authPassword').value;
@@ -115,7 +134,7 @@ async function loadDashboard() {
         document.getElementById('refLinkText').innerText = MY_REF_LINK;
 
         const plansList = document.getElementById('dynamicPlansList');
-        if (data.plans.length > 0) {
+        if (data.plans && data.plans.length > 0) {
             plansList.innerHTML = data.plans.map(plan => {
                 const totalEarn = plan.dailyReturn * plan.duration;
                 const weeklyEarn = plan.dailyReturn * 7;
@@ -149,7 +168,7 @@ async function loadDashboard() {
         }
 
         const invList = document.getElementById('investmentsList');
-        if (data.investments.length > 0) {
+        if (data.investments && data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => `
                 <div class="glass-panel rounded-3xl p-5 border border-white/5 flex justify-between items-center">
                     <div>
@@ -166,7 +185,7 @@ async function loadDashboard() {
 
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
-    } catch (error) { console.error("Error fetching data", error); }
+    } catch (error) { console.error("Error fetching dashboard data", error); }
 }
 
 // ==========================================
@@ -370,4 +389,12 @@ async function processWithdrawal() {
             body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount, bankName: bank, accNo, accName })
         });
         const result = await response.json();
-        tg.Main
+        tg.MainButton.hide(); btn.disabled = false;
+
+        if (result.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Withdrawal request sent!");
+            loadDashboard(); tg.BackButton.click(); 
+        } else { tg.showAlert(`❌ Error: ${result.error}`); }
+    } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
+    }
