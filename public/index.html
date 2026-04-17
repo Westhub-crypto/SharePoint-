@@ -7,32 +7,36 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-<body class="bg-gray-900 text-white font-sans antialiased p-4">
+<body class="bg-gray-900 text-white font-sans antialiased p-4 pb-10">
 
-    <div class="bg-gray-800 rounded-2xl p-6 mb-6 shadow-lg text-center mt-4">
+    <div class="bg-gray-800 rounded-2xl p-6 mb-6 shadow-lg text-center mt-4 border border-gray-700">
         <h2 class="text-gray-400 text-sm uppercase tracking-wider mb-1">Total Balance</h2>
         <h1 class="text-4xl font-bold text-green-400" id="balanceDisplay">₦0</h1>
         
-        <button onclick="fundWallet()" class="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition duration-200">
-            Fund Wallet via SquadCo
-        </button>
-        <p id="fundingDetails" class="text-xs text-gray-400 mt-2 hidden"></p>
+        <div class="mt-6 bg-gray-900 p-4 rounded-xl border border-gray-700 shadow-inner">
+            <label class="block text-left text-xs text-gray-400 mb-2 font-semibold tracking-wide">DEPOSIT AMOUNT (₦)</label>
+            <input type="number" id="depositAmount" placeholder="e.g. 10000" class="w-full bg-gray-800 text-white text-lg rounded-lg p-3 outline-none border border-gray-600 focus:border-blue-500 transition mb-4 placeholder-gray-500">
+            
+            <button onclick="fundWallet()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition duration-200 shadow-lg shadow-blue-900/20 active:scale-95">
+                Generate Payment Link
+            </button>
+        </div>
     </div>
 
-    <h3 class="text-xl font-bold mb-4">Available Shares</h3>
+    <h3 class="text-xl font-bold mb-4 px-2">Available Shares</h3>
     
-    <div class="bg-gray-800 rounded-2xl p-5 shadow-lg flex justify-between items-center">
+    <div class="bg-gray-800 rounded-2xl p-5 shadow-lg flex justify-between items-center border border-gray-700">
         <div>
             <h4 class="text-lg font-bold text-white">Silver Share</h4>
-            <p class="text-sm text-gray-400">Cost: ₦10,000</p>
-            <p class="text-sm text-green-400">Earn: ₦200 / day</p>
-            <p class="text-xs text-gray-500">Duration: 30 Days</p>
+            <p class="text-sm text-gray-400 mt-1">Cost: ₦10,000</p>
+            <p class="text-sm text-green-400 font-medium">Earn: ₦200 / day</p>
+            <p class="text-xs text-gray-500 mt-1">Duration: 30 Days</p>
         </div>
-        <button onclick="buyShare('silver')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-xl transition duration-200">
+        <button onclick="buyShare('silver')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 px-6 rounded-xl transition duration-200 shadow-lg shadow-green-900/20 active:scale-95">
             Buy
         </button>
     </div>
 
     <script src="script.js"></script>
 </body>
-  </html>
+                </html>
