@@ -7,11 +7,8 @@ const user = tg.initDataUnsafe?.user;
 const USER_ID = user ? user.id.toString() : "12345"; 
 const USER_NAME = user ? user.first_name : "Test User";
 
-// Look for a referral code if they clicked a friend's link!
 const REFERRED_BY = tg.initDataUnsafe?.start_param || null;
-
-// Unique Referral Link Generator
-const BOT_USERNAME = "SharePoint_official_bot"; // Change this if your bot has a different username
+const BOT_USERNAME = "SharePoint_official_bot"; 
 const MY_REF_LINK = `https://t.me/${BOT_USERNAME}?start=${USER_ID}`;
 
 // NAVIGATION LOGIC
@@ -24,12 +21,13 @@ function switchTab(tabId) {
     document.getElementById('depositView').classList.add('hidden');
     document.getElementById('withdrawView').classList.add('hidden');
     
-    document.getElementById('tab-dashboard').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
-    document.getElementById('tab-portfolio').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
-    document.getElementById('tab-referral').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
+    document.getElementById('tab-dashboard').className = "flex flex-col items-center text-stone-500 hover:text-yellow-500/50 transition";
+    document.getElementById('tab-portfolio').className = "flex flex-col items-center text-stone-500 hover:text-yellow-500/50 transition";
+    document.getElementById('tab-referral').className = "flex flex-col items-center text-stone-500 hover:text-yellow-500/50 transition";
     
+    // Highlight active tab with GOLD glow
     document.getElementById(tabId + 'View').classList.remove('hidden');
-    document.getElementById('tab-' + tabId).className = "flex flex-col items-center text-blue-400 transition drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]";
+    document.getElementById('tab-' + tabId).className = "flex flex-col items-center text-yellow-500 transition drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]";
 }
 
 function showDepositPage() {
@@ -96,18 +94,19 @@ async function fetchUserData() {
         document.getElementById('withdrawableBalanceDisplay').innerText = `₦${earnBal.toLocaleString()}`;
         document.getElementById('referralCountDisplay').innerText = refCount;
 
-        // RENDER PORTFOLIO
+        // RENDER PORTFOLIO (GOLD THEME UPDATE)
         const invList = document.getElementById('investmentsList');
         if (data.investments && data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => {
                 const daysPassed = 30 - inv.daysLeft;
                 const totalEarnedSoFar = daysPassed * inv.dailyReturn;
                 return `
-                <div class="bg-white/5 backdrop-blur-lg rounded-3xl p-5 border border-white/10 shadow-xl relative overflow-hidden">
+                <div class="bg-gradient-to-br from-stone-800 to-stone-900 rounded-3xl p-5 border border-yellow-500/20 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 rounded-full blur-2xl -z-10"></div>
                     <div class="flex justify-between items-center mb-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-400/30">
-                                <i class="fa-solid fa-chart-line text-blue-400 text-sm"></i>
+                            <div class="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/30">
+                                <i class="fa-solid fa-chart-line text-yellow-500 text-sm"></i>
                             </div>
                             <div>
                                 <h4 class="font-bold text-white uppercase tracking-wide text-sm">${inv.shareType} Plan</h4>
@@ -115,21 +114,21 @@ async function fetchUserData() {
                             </div>
                         </div>
                         <div class="text-right">
-                            <p class="text-xl font-black text-white">${inv.daysLeft}</p>
-                            <p class="text-[10px] text-gray-400 uppercase tracking-widest">Days Left</p>
+                            <p class="text-xl font-black text-yellow-400">${inv.daysLeft}</p>
+                            <p class="text-[10px] text-stone-400 uppercase tracking-widest">Days Left</p>
                         </div>
                     </div>
-                    <div class="bg-black/30 rounded-xl p-3 border border-white/5 flex justify-between items-center">
-                        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Earned</span>
+                    <div class="bg-black/50 rounded-xl p-3 border border-stone-700 flex justify-between items-center">
+                        <span class="text-xs text-stone-400 font-medium uppercase tracking-wider">Total Earned</span>
                         <span class="text-emerald-400 font-bold text-lg">₦${totalEarnedSoFar.toLocaleString()}</span>
                     </div>
                 </div>`
             }).join('');
         } else {
             invList.innerHTML = `
-                <div class="bg-white/5 border border-dashed border-white/20 p-8 rounded-3xl text-center">
-                    <i class="fa-solid fa-box-open text-3xl text-gray-600 mb-3"></i>
-                    <p class="text-gray-400 text-sm">You have no active investments.</p>
+                <div class="bg-stone-800/50 border border-dashed border-stone-600 p-8 rounded-3xl text-center">
+                    <i class="fa-solid fa-vault text-3xl text-yellow-500/50 mb-3"></i>
+                    <p class="text-stone-400 text-sm">You have no active investments.</p>
                 </div>`;
         }
     } catch (error) {
