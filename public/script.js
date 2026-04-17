@@ -22,6 +22,7 @@ function switchTab(tabId) {
     document.getElementById('portfolioView').classList.add('hidden');
     document.getElementById('referralView').classList.add('hidden');
     document.getElementById('depositView').classList.add('hidden');
+    document.getElementById('withdrawView').classList.add('hidden');
     
     document.getElementById('tab-dashboard').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
     document.getElementById('tab-portfolio').className = "flex flex-col items-center text-gray-500 hover:text-gray-300 transition";
@@ -48,6 +49,23 @@ function showDepositPage() {
     });
 }
 
+function showWithdrawPage() {
+    tg.HapticFeedback.impactOccurred('light');
+    document.getElementById('dashboardView').classList.add('hidden');
+    document.getElementById('portfolioView').classList.add('hidden');
+    document.getElementById('referralView').classList.add('hidden');
+    document.getElementById('bottomNav').classList.add('hidden'); 
+    document.getElementById('withdrawView').classList.remove('hidden');
+    
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        document.getElementById('withdrawView').classList.add('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        switchTab('dashboard');
+        tg.BackButton.hide();
+    });
+}
+
 function setAmount(amount) {
     tg.HapticFeedback.selectionChanged();
     document.getElementById('depositAmount').value = amount;
@@ -62,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function fetchUserData() {
     try {
-        // We use our new /api/login endpoint to pass the referral code!
         const response = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -123,26 +140,22 @@ async function fetchUserData() {
 // REFERRAL ACTIONS
 function copyRefLink() {
     tg.HapticFeedback.impactOccurred('medium');
-    
-    // Create a temporary hidden input to copy text (works on all mobile devices)
     const tempInput = document.createElement("input");
     tempInput.value = MY_REF_LINK;
     document.body.appendChild(tempInput);
     tempInput.select();
     document.execCommand("copy");
     document.body.removeChild(tempInput);
-    
     tg.showAlert("✅ Link copied! Send it to your friends to earn bonuses.");
 }
 
 function shareLink() {
     tg.HapticFeedback.impactOccurred('light');
-    const shareText = `Hey! I'm earning daily with SharePoint. Join using my link and get started: ${MY_REF_LINK}`;
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(MY_REF_LINK)}&text=${encodeURIComponent('Join me on SharePoint!')}`;
     tg.openTelegramLink(shareUrl);
 }
 
-// BUY & FUND LOGIC
+// TRANSACTION LOGIC
 function buyShare(shareType) {
     tg.showConfirm(`Buy ${shareType} share for ₦10,000?`, async (confirmed) => {
         if (!confirmed) return;
@@ -193,3 +206,40 @@ async function fundWallet() {
         btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
     }
 }
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+    const btn = document.getElementById('withdrawBtn');
+
+    if (!amount || amount < 1000) return tg.showAlert("Minimum withdrawal is ₦1,000");
+    if (!bank || !accNo || !accName) return tg.showAlert("Please fill all bank details.");
+
+    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount, bankName: bank, accNo, accName })
+        });
+        
+        const result = await response.json();
+        tg.MainButton.hide(); btn.disabled = false;
+
+        if (result.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Withdrawal request sent! You will receive your funds soon.");
+            fetchUserData(); 
+            tg.BackButton.click(); 
+        } else {
+            tg.showAlert(`❌ Error: ${result.error}`);
+        }
+    } catch (e) {
+        tg.MainButton.hide(); btn.disabled = false;
+        tg.showAlert("Network error. Try again.");
+    }
+        }
