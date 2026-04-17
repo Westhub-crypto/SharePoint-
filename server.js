@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ==========================================
 const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""; // Added Bot Token
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -52,12 +52,22 @@ const SHARE_TYPES = {
 // 3. API ROUTES
 // ==========================================
 
-// Get User Balances
+// Get User Balances & ACTIVE INVESTMENTS
 app.get('/api/user/:id', async (req, res) => {
     try {
         let user = await User.findOne({ tgId: req.params.id });
-        if (!user) return res.json({ walletBalance: 0, withdrawableBalance: 0 });
-        res.json(user);
+        if (!user) {
+            return res.json({ walletBalance: 0, withdrawableBalance: 0, investments: [] });
+        }
+
+        // Fetch their active investments
+        let activeInvestments = await Investment.find({ userId: req.params.id, daysLeft: { $gt: 0 } });
+
+        res.json({
+            walletBalance: user.walletBalance,
+            withdrawableBalance: user.withdrawableBalance,
+            investments: activeInvestments
+        });
     } catch (error) {
         res.status(500).json({ error: "Server error" });
     }
@@ -69,7 +79,6 @@ app.post('/api/fund', async (req, res) => {
     if (!amount || amount < 100) return res.status(400).json({ error: "Minimum deposit is ₦100" });
 
     const amountInKobo = amount * 100;
-    // We attach the Telegram ID to the transaction reference so the webhook knows who paid!
     const transactionRef = `SP-${userId}-${Date.now()}`;
 
     try {
@@ -89,7 +98,6 @@ app.post('/api/fund', async (req, res) => {
         });
 
         const data = await response.json();
-        
         if (data.status === 200 && data.data && data.data.checkout_url) {
             res.json({ success: true, checkoutUrl: data.data.checkout_url });
         } else {
@@ -144,43 +152,32 @@ app.post('/api/buy-share', async (req, res) => {
 });
 
 // ==========================================
-// 4. SQUADCO WEBHOOK LISTENER (NEW!)
+// 4. SQUADCO WEBHOOK LISTENER
 // ==========================================
 app.post('/webhook/squad', async (req, res) => {
-    // 1. Instantly tell SquadCo we received the message so they stop trying to send it
     res.status(200).send("OK");
-
     try {
         const eventType = req.body.Event;
         const txData = req.body.Body;
 
-        // Check if the payment was actually successful
         if (eventType === 'charge_successful' && txData) {
-            const txRef = txData.transaction_ref; // e.g., "SP-123456789-17000000"
-            const amountInNaira = txData.amount / 100; // Convert Kobo back to Naira
-
-            // Extract the Telegram ID from the transaction reference
+            const txRef = txData.transaction_ref;
+            const amountInNaira = txData.amount / 100;
             const parts = txRef.split('-');
+            
             if (parts[0] === 'SP' && parts[1]) {
                 const tgId = parts[1];
-
-                // Find the user and add the money!
                 const user = await User.findOne({ tgId: tgId });
                 if (user) {
                     user.walletBalance += amountInNaira;
                     await user.save();
 
-                    // Instantly text the user via Telegram
                     if (BOT_TOKEN) {
                         const message = `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} has been added to your Wallet Balance.`;
                         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                chat_id: tgId,
-                                text: message,
-                                parse_mode: 'Markdown'
-                            })
+                            body: JSON.stringify({ chat_id: tgId, text: message, parse_mode: 'Markdown' })
                         });
                     }
                 }
