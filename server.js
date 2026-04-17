@@ -32,7 +32,7 @@ const UserSchema = new mongoose.Schema({
     name: { type: String },
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
-    referredBy: { type: String, default: null }
+    referredBy: { type: String, default: null } // Stores who invited them!
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -52,21 +52,30 @@ const SHARE_TYPES = {
 // 3. API ROUTES
 // ==========================================
 
-// Get User Balances & ACTIVE INVESTMENTS
-app.get('/api/user/:id', async (req, res) => {
+// NEW SMART LOGIN (Handles Referrals & Stats)
+app.post('/api/login', async (req, res) => {
+    const { tgId, name, referredBy } = req.body;
+    
     try {
-        let user = await User.findOne({ tgId: req.params.id });
+        let user = await User.findOne({ tgId: tgId });
+        
+        // If brand new user, save them and who referred them
         if (!user) {
-            return res.json({ walletBalance: 0, withdrawableBalance: 0, investments: [] });
+            user = new User({ tgId, name, referredBy });
+            await user.save();
         }
 
         // Fetch their active investments
-        let activeInvestments = await Investment.find({ userId: req.params.id, daysLeft: { $gt: 0 } });
+        let activeInvestments = await Investment.find({ userId: tgId, daysLeft: { $gt: 0 } });
+        
+        // Count how many people they have successfully referred
+        let referralCount = await User.countDocuments({ referredBy: tgId });
 
         res.json({
             walletBalance: user.walletBalance,
             withdrawableBalance: user.withdrawableBalance,
-            investments: activeInvestments
+            investments: activeInvestments,
+            referrals: referralCount
         });
     } catch (error) {
         res.status(500).json({ error: "Server error" });
@@ -110,17 +119,14 @@ app.post('/api/fund', async (req, res) => {
 
 // Buy a Share
 app.post('/api/buy-share', async (req, res) => {
-    const { userId, userName, shareType } = req.body;
+    const { userId, shareType } = req.body;
     const share = SHARE_TYPES[shareType];
 
     if (!share) return res.status(400).json({ error: "Invalid share type" });
 
     try {
         let user = await User.findOne({ tgId: userId });
-        if (!user) {
-            user = new User({ tgId: userId, name: userName });
-            await user.save();
-        }
+        if (!user) return res.status(400).json({ error: "User not found" });
 
         if (user.walletBalance < share.cost) {
             return res.status(400).json({ error: "Insufficient Wallet Balance. Please deposit funds." });
@@ -137,6 +143,7 @@ app.post('/api/buy-share', async (req, res) => {
         });
         await newInvestment.save();
 
+        // UPFRONT REFERRAL BONUS: Give 5% to the person who referred them!
         if (user.referredBy) {
             const referrer = await User.findOne({ tgId: user.referredBy });
             if (referrer) {
@@ -202,6 +209,7 @@ cron.schedule('0 0 * * *', async () => {
                 await buyer.save();
                 await inv.save();
 
+                // DAILY REFERRAL BONUS: Give 10% of yield to referrer!
                 if (buyer.referredBy) {
                     const referrer = await User.findOne({ tgId: buyer.referredBy });
                     if (referrer) {
