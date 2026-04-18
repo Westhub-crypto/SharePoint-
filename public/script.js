@@ -149,10 +149,8 @@ async function loadDashboard() {
 }
 
 // ==========================================
-// 4. ADMIN PANEL (EDIT / DELETE PLANS)
+// 4. ADMIN PANEL 
 // ==========================================
-let editingPlanId = null;
-
 function switchAdminSubTab(tab) {
     var tabs = ['withdrawals', 'plans', 'users'];
     for(var i=0; i<tabs.length; i++) {
@@ -190,51 +188,10 @@ async function loadAdminStats() {
             </div>
         `).join('');
 
-        // Render Existing Plans for Editing/Deleting
-        document.getElementById('adminExistingPlans').innerHTML = data.plans.map(p => `
-            <div class="card p-4 rounded-xl border border-gray-200 flex justify-between items-center">
-                <div>
-                    <p class="font-extrabold text-gray-900 text-sm">${p.name}</p>
-                    <p class="text-[10px] text-gray-500 font-bold uppercase mt-1">Cost: ₦${p.cost.toLocaleString()} | Daily: ₦${p.dailyReturn.toLocaleString()}</p>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="startEditPlan('${p._id}', '${p.name}', '${p.icon}', ${p.cost}, ${p.dailyReturn}, ${p.duration})" class="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center"><i class="fa-solid fa-pen"></i></button>
-                    <button onclick="adminDeletePlan('${p._id}')" class="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>
-                </div>
-            </div>
-        `).join('');
-
     } catch (e) {}
 }
 
-function startEditPlan(id, name, icon, cost, daily, duration) {
-    editingPlanId = id;
-    document.getElementById('newPlanName').value = name;
-    document.getElementById('newPlanIcon').value = icon;
-    document.getElementById('newPlanCost').value = cost;
-    document.getElementById('newPlanDaily').value = daily;
-    document.getElementById('newPlanDuration').value = duration;
-    
-    document.getElementById('planFormTitle').innerText = "Edit Plan";
-    document.getElementById('planSubmitBtn').innerText = "Update Plan";
-    document.getElementById('cancelEditBtn').classList.remove('hidden');
-    window.scrollTo(0, 0);
-}
-
-function cancelEditPlan() {
-    editingPlanId = null;
-    document.getElementById('newPlanName').value = "";
-    document.getElementById('newPlanIcon').value = "";
-    document.getElementById('newPlanCost').value = "";
-    document.getElementById('newPlanDaily').value = "";
-    document.getElementById('newPlanDuration').value = "";
-    
-    document.getElementById('planFormTitle').innerText = "Publish New Plan";
-    document.getElementById('planSubmitBtn').innerText = "Publish Plan";
-    document.getElementById('cancelEditBtn').classList.add('hidden');
-}
-
-async function adminSubmitPlan() {
+async function adminAddPlan() {
     const name = document.getElementById('newPlanName').value;
     const icon = document.getElementById('newPlanIcon').value || "fa-gem";
     const cost = Number(document.getElementById('newPlanCost').value);
@@ -243,40 +200,22 @@ async function adminSubmitPlan() {
 
     if(!name || !cost || !dailyReturn || !duration) return tg.showAlert("Fill all fields.");
 
-    const payload = { name, cost, dailyReturn, duration, icon };
-    let url = '/api/admin/plan/add';
+    tg.MainButton.text = "Publishing Plan..."; tg.MainButton.show();
     
-    if (editingPlanId) {
-        payload.planId = editingPlanId;
-        url = '/api/admin/plan/edit';
-    }
-
-    tg.MainButton.text = editingPlanId ? "Updating Plan..." : "Publishing Plan..."; 
-    tg.MainButton.show();
-    
-    await fetch(url, {
+    await fetch('/api/admin/plan/add', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon })
     });
     
     tg.MainButton.hide(); 
-    tg.showAlert(editingPlanId ? "Plan Updated Successfully!" : "Plan Published Successfully!"); 
-    cancelEditPlan();
+    tg.showAlert("Plan Published Successfully!"); 
+    
+    document.getElementById('newPlanName').value = "";
+    document.getElementById('newPlanCost').value = "";
+    document.getElementById('newPlanDaily').value = "";
+    document.getElementById('newPlanDuration').value = "";
+    
     loadDashboard();
-}
-
-async function adminDeletePlan(planId) {
-    tg.showConfirm("Are you sure you want to permanently delete this plan?", async (conf) => {
-        if (!conf) return;
-        tg.MainButton.text = "Deleting..."; tg.MainButton.show();
-        await fetch('/api/admin/plan/delete', {
-            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-            body: JSON.stringify({ planId })
-        });
-        tg.MainButton.hide();
-        tg.showAlert("Plan deleted.");
-        loadDashboard();
-    });
 }
 
 async function resolveWithdrawal(refId, action) {
@@ -424,4 +363,53 @@ function shareLink() {
 
 async function fundWallet() {
     const amount = Number(document.getElementById('depositAmount').value);
-    const btn = document.getElementById
+    const btn = document.getElementById('generateLinkBtn');
+    if (!amount || amount < 100) { tg.showAlert("Min deposit is ₦100."); return; }
+    
+    tg.HapticFeedback.impactOccurred('medium');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Generating..."; btn.disabled = true; 
+
+    try {
+        const response = await fetch('/api/fund', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, amount: amount })
+        });
+        const result = await response.json();
+        btn.innerText = originalText; btn.disabled = false;
+
+        if (result.success) tg.openLink(result.checkoutUrl);
+        else tg.showAlert(`❌ Error: ${result.error}`);
+    } catch (error) {
+        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
+    }
+}
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+    const btn = document.getElementById('withdrawBtn');
+
+    if (!amount || amount < 1000) return tg.showAlert("Min withdrawal is ₦1,000.");
+    if (!bank || !accNo || !accName) return tg.showAlert("Fill all banking details.");
+
+    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
+        });
+        const result = await response.json();
+        tg.MainButton.hide(); btn.disabled = false;
+
+        if (result.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Withdrawal request sent!");
+            loadDashboard(); tg.BackButton.click(); 
+        } else { tg.showAlert(`❌ Error: ${result.error}`); }
+    } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
+                            }
