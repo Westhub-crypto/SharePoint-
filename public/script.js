@@ -1,37 +1,29 @@
-// GLOBAL ERROR CATCHER: If anything breaks, it will print to the screen.
-window.onerror = function(msg, url, lineNo, columnNo, error) {
-    var title = document.getElementById('authTitle');
-    var sub = document.getElementById('authSub');
-    if (title && sub) {
-        title.innerText = "App Error!";
-        sub.innerText = "Error: " + msg + " (Line " + lineNo + ")";
-    }
-    return false;
-};
-
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand(); 
 
-// Old-school safety checks to prevent crashes
 let user = null;
-if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    user = tg.initDataUnsafe.user;
+if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+    user = window.Telegram.WebApp.initDataUnsafe.user;
 }
+
 const USER_ID = user ? user.id.toString() : "12345"; 
+const USER_NAME = user ? user.first_name : "User";
 
 let REFERRED_BY = null;
-if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
-    REFERRED_BY = tg.initDataUnsafe.start_param;
+if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) {
+    REFERRED_BY = window.Telegram.WebApp.initDataUnsafe.start_param;
 }
 
 const BOT_USERNAME = "SharePoint_official_bot"; 
 const MY_REF_LINK = "https://t.me/" + BOT_USERNAME + "?start=" + USER_ID;
 const ADMIN_ID = "8067627422"; 
 
-let currentAuthMode = "login"; 
-
-async function startApp() {
+// ==========================================
+// 1. INSTANT BOOT SEQUENCE
+// ==========================================
+window.onload = function() {
+    // SECURITY PURGE
     if (USER_ID !== ADMIN_ID) {
         var adminView = document.getElementById('adminView');
         var tabAdmin = document.getElementById('tab-admin');
@@ -50,133 +42,36 @@ async function startApp() {
         }
     }
 
-    var authTitle = document.getElementById('authTitle');
-    var authSub = document.getElementById('authSub');
-    
-    if (authTitle) authTitle.innerText = "Waking Server...";
-    if (authSub) authSub.innerText = "Please wait a moment...";
-
-    // Failsafe timer: If server takes longer than 12 seconds
-    var bootTimer = setTimeout(function() {
-        if (authTitle) authTitle.innerText = "Server Asleep 😴";
-        if (authSub) authSub.innerText = "Tap below to wake it up.";
-        var authForm = document.getElementById('authForm');
-        if (authForm) {
-            authForm.innerHTML = '<button onclick="window.location.reload()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">Retry Connection</button>';
-            authForm.classList.remove('hidden');
-        }
-    }, 12000);
-
-    try {
-        const res = await fetch('/api/auth/check', {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tgId: USER_ID })
-        });
-
-        clearTimeout(bootTimer);
-
-        if (!res.ok) throw new Error("Server not responding.");
-
-        const data = await res.json();
-
-        if (data.status === "banned") {
-            if (authTitle) authTitle.innerText = "Account Suspended";
-            if (authSub) authSub.innerText = "Please contact support.";
-            return;
-        }
-
-        var authForm = document.getElementById('authForm');
-        var authUsername = document.getElementById('authUsername');
-        var forgotBtn = document.getElementById('forgotBtn');
-
-        if (authForm) authForm.classList.remove('hidden');
-        
-        if (data.status === "needs_registration") {
-            currentAuthMode = "register";
-            if (authTitle) authTitle.innerText = "Create Account";
-            if (authSub) authSub.innerText = "Set up your login details.";
-            if (authUsername) authUsername.classList.remove('hidden');
-            if (forgotBtn) forgotBtn.classList.add('hidden'); 
-        } else {
-            currentAuthMode = "login";
-            if (authTitle) authTitle.innerText = "Welcome Back";
-            if (authSub) authSub.innerText = "Enter password to unlock.";
-            if (authUsername) authUsername.classList.add('hidden'); 
-            if (forgotBtn) forgotBtn.classList.remove('hidden'); 
-        }
-    } catch (e) { 
-        clearTimeout(bootTimer);
-        if (authTitle) authTitle.innerText = "Offline 🔌";
-        if (authSub) authSub.innerText = "Could not connect to server.";
-        var authForm = document.getElementById('authForm');
-        if (authForm) {
-            authForm.innerHTML = '<button onclick="window.location.reload()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">Retry</button>';
-            authForm.classList.remove('hidden');
-        }
-    }
-}
-
-// Start immediately
-startApp();
-
-async function submitAuth() {
-    const password = document.getElementById('authPassword').value;
-    if (!password) return tg.showAlert("Password is required.");
-
-    tg.MainButton.text = "Authenticating..."; tg.MainButton.show(); tg.MainButton.showProgress();
-
-    try {
-        let endpoint = currentAuthMode === "register" ? '/api/auth/register' : '/api/auth/login';
-        let payload = { tgId: USER_ID, password: password };
-        
-        if (currentAuthMode === "register") {
-            const username = document.getElementById('authUsername').value;
-            if (!username) { tg.MainButton.hide(); return tg.showAlert("Username required."); }
-            payload.username = username;
-            payload.referredBy = REFERRED_BY;
-        }
-
-        const res = await fetch(endpoint, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        tg.MainButton.hide();
-
-        if (result.success) {
-            document.getElementById('authView').classList.add('hidden');
-            document.getElementById('mainApp').classList.remove('hidden');
-            loadDashboard();
-        } else {
-            tg.showAlert(result.error);
-        }
-    } catch (e) { tg.MainButton.hide(); tg.showAlert("Network error."); }
-}
-
-async function forgotPassword() {
-    tg.showConfirm("Send a new temporary password to your Telegram chat?", async (conf) => {
-        if(!conf) return;
-        tg.MainButton.text = "Resetting..."; tg.MainButton.show();
-        try {
-            const res = await fetch('/api/auth/forgot', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({tgId: USER_ID})
-            });
-            const result = await res.json();
-            tg.MainButton.hide();
-            if(result.success) tg.showAlert("✅ New password sent! Check your Telegram messages with the bot.");
-            else tg.showAlert(`❌ ${result.error}`);
-        } catch(e) { tg.MainButton.hide(); tg.showAlert("Network error."); }
-    });
-}
+    // Go straight into loading the dashboard
+    loadDashboard();
+};
 
 // ==========================================
 // 2. LOAD DASHBOARD & RENDER PLANS
 // ==========================================
 async function loadDashboard() {
+    tg.MainButton.text = "Loading data..."; tg.MainButton.show(); tg.MainButton.showProgress();
+    
     try {
-        const res = await fetch('/api/dashboard/' + USER_ID);
+        const res = await fetch('/api/login', {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tgId: USER_ID, name: USER_NAME, referredBy: REFERRED_BY })
+        });
+        
+        tg.MainButton.hide();
+
+        if (!res.ok) {
+            tg.showAlert("Server is offline. Try again.");
+            return;
+        }
+
         const data = await res.json();
+
+        if (data.error === "Banned") {
+            document.body.innerHTML = "<h2 style='color:red; text-align:center; margin-top:50px;'>Account Suspended</h2>";
+            return;
+        }
 
         document.getElementById('userNameDisplay').innerText = data.user.username || "Investor";
         document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
@@ -236,7 +131,10 @@ async function loadDashboard() {
 
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
-    } catch (error) { console.error("Error fetching dashboard data", error); }
+    } catch (error) { 
+        tg.MainButton.hide();
+        tg.showAlert("Network error. Please wait for the server to wake up."); 
+    }
 }
 
 // ==========================================
@@ -427,4 +325,50 @@ async function fundWallet() {
     const btn = document.getElementById('generateLinkBtn');
     if (!amount || amount < 100) { tg.showAlert("Min ₦100."); return; }
     
-    tg.HapticFeedback.imp
+    tg.HapticFeedback.impactOccurred('medium');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Generating..."; btn.disabled = true; 
+
+    try {
+        const response = await fetch('/api/fund', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, amount: amount })
+        });
+        const result = await response.json();
+        btn.innerText = originalText; btn.disabled = false;
+
+        if (result.success) tg.openLink(result.checkoutUrl);
+        else tg.showAlert(`❌ Error: ${result.error}`);
+    } catch (error) {
+        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
+    }
+}
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+    const btn = document.getElementById('withdrawBtn');
+
+    if (!amount || amount < 1000) return tg.showAlert("Min ₦1,000");
+    if (!bank || !accNo || !accName) return tg.showAlert("Fill all fields.");
+
+    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
+        });
+        const result = await response.json();
+        tg.MainButton.hide(); btn.disabled = false;
+
+        if (result.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Withdrawal request sent!");
+            loadDashboard(); tg.BackButton.click(); 
+        } else { tg.showAlert(`❌ Error: ${result.error}`); }
+    } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
+}
