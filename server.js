@@ -114,8 +114,7 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
         const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
         const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
-        const plans = await Plan.find({}); // NEW: Fetch plans for editing
-        res.json({ users: users, pendingWithdrawals: pendingWithdrawals, plans: plans });
+        res.json({ users: users, pendingWithdrawals: pendingWithdrawals });
     } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
 });
 
@@ -125,24 +124,6 @@ app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
         const plan = new Plan({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon });
         await plan.save(); res.json({ success: true, plan: plan });
     } catch (err) { res.status(500).json({ error: "Failed to add plan" }); }
-});
-
-// NEW: Edit Plan Route
-app.post('/api/admin/plan/edit', isAdmin, async (req, res) => {
-    const { id, name, cost, dailyReturn, duration, icon } = req.body;
-    try {
-        await Plan.findByIdAndUpdate(id, { name, cost, dailyReturn, duration, icon });
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "Failed to update plan" }); }
-});
-
-// NEW: Delete Plan Route
-app.post('/api/admin/plan/delete', isAdmin, async (req, res) => {
-    const { id } = req.body;
-    try {
-        await Plan.findByIdAndDelete(id);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "Failed to delete plan" }); }
 });
 
 app.post('/api/admin/ban', isAdmin, async (req, res) => {
