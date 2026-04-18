@@ -76,7 +76,7 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. CORE ROUTES
+// 3. CORE ROUTES & SUPPORT
 // ==========================================
 app.post('/api/login', async (req, res) => {
     const { tgId, name, referredBy } = req.body;
@@ -102,6 +102,20 @@ app.post('/api/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server error" }); }
 });
 
+app.post('/api/support/send', async (req, res) => {
+    const { tgId, username, topic, message } = req.body;
+    try {
+        if (bot && ADMIN_ID) {
+            const supportMsg = `📩 *New Support Ticket*\n\n👤 *User:* ${username}\n🆔 *ID:* (${tgId})\n📌 *Topic:* ${topic}\n\n💬 *Message:*\n${message}\n\n_Reply directly to this message to chat with the user._`;
+            bot.sendMessage(ADMIN_ID, supportMsg, { parse_mode: 'Markdown' });
+            res.json({ success: true });
+        } else { res.status(500).json({ error: "Bot offline" }); }
+    } catch (err) { res.status(500).json({ error: "Failed to send message" }); }
+});
+
+// ==========================================
+// 4. ADMIN & TRANSACTIONS
+// ==========================================
 const isAdmin = (req, res, next) => {
     if (req.headers['x-admin-id'] !== ADMIN_ID) return res.status(403).json({ error: "Unauthorized" });
     next();
@@ -147,8 +161,8 @@ app.post('/api/admin/withdraw/resolve', isAdmin, async (req, res) => {
 
         if (bot) {
             const msg = action === 'approve' 
-                ? `🎉 *Withdrawal Approved!*\n\n₦${request.amount.toLocaleString()} has been sent to your bank.`
-                : `❌ *Withdrawal Rejected.*\n\nYour request for ₦${request.amount.toLocaleString()} was declined and refunded.`;
+                ? `🎉 *Withdrawal Approved!*\n\nYour payout of ${request.amount} has been sent to your bank.`
+                : `❌ *Withdrawal Rejected.*\n\nYour request for ${request.amount} was declined and refunded.`;
             bot.sendMessage(request.userId, msg, { parse_mode: 'Markdown' });
         }
         res.json({ success: true });
@@ -179,7 +193,7 @@ app.post('/api/buy-share', async (req, res) => {
 
 app.post('/api/withdraw', async (req, res) => {
     const { userId, userName, amount, bankName, accNo, accName } = req.body;
-    if (!amount || amount < 1000) return res.status(400).json({ error: "Minimum is ₦1,000" });
+    if (!amount) return res.status(400).json({ error: "Invalid amount" });
 
     try {
         const user = await User.findOne({ tgId: userId });
@@ -191,7 +205,7 @@ app.post('/api/withdraw', async (req, res) => {
         await request.save();
 
         if (bot && ADMIN_ID) {
-            const adminMsg = `🚨 *New Withdrawal Request*\n\n🆔 *ID:* ${request.refId}\n👤 *User:* ${userName}\n💰 *Amount:* ₦${amount.toLocaleString()}\n🏦 *Bank:* ${bankName}\n🔢 *Acc:* \`${accNo}\`\n📛 *Name:* ${accName}\n\n✅ Reply with:\n\`/paid ${request.refId}\``;
+            const adminMsg = `🚨 *New Withdrawal Request*\n\n🆔 *ID:* ${request.refId}\n👤 *User:* ${userName}\n💰 *Base Amount:* ${amount.toLocaleString()}\n🏦 *Bank:* ${bankName}\n🔢 *Acc:* \`${accNo}\`\n📛 *Name:* ${accName}\n\n✅ Reply with:\n\`/paid ${request.refId}\``;
             bot.sendMessage(ADMIN_ID, adminMsg, { parse_mode: 'Markdown' });
         }
         res.json({ success: true, newBalance: user.withdrawableBalance });
@@ -200,7 +214,7 @@ app.post('/api/withdraw', async (req, res) => {
 
 app.post('/api/fund', async (req, res) => {
     const { userId, amount } = req.body;
-    if (!amount || amount < 100) return res.status(400).json({ error: "Minimum deposit is ₦100" });
+    if (!amount) return res.status(400).json({ error: "Invalid deposit amount" });
     try {
         const response = await fetch(SQUAD_INITIATE_URL, {
             method: 'POST', headers: { 'Authorization': `Bearer ${SQUAD_SECRET_KEY}`, 'Content-Type': 'application/json' },
@@ -229,7 +243,7 @@ app.post('/webhook/squad', async (req, res) => {
                 const user = await User.findOne({ tgId: tgId });
                 if (user) {
                     user.walletBalance += amountInNaira; await user.save();
-                    if (bot) bot.sendMessage(tgId, `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} added to your Wallet.`, { parse_mode: 'Markdown' });
+                    if (bot) bot.sendMessage(tgId, `✅ *Deposit Successful!*\n\n${amountInNaira.toLocaleString()} added to your Wallet.`, { parse_mode: 'Markdown' });
                 }
             }
         }
@@ -248,16 +262,30 @@ if (bot) {
         } catch (err) { console.error("Bot Start Error:", err); }
     });
 
-    bot.onText(/\/paid (.+)/, async (msg, match) => {
+    bot.on('message', async (msg) => {
         if (msg.chat.id.toString() !== ADMIN_ID) return;
-        const refId = match[1].trim();
-        try {
-            const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
-            if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
-            withdrawal.status = "Paid"; await withdrawal.save();
-            bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
-            bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
-        } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
+
+        if (msg.text && msg.text.startsWith('/paid ')) {
+            const refId = msg.text.split(' ')[1].trim();
+            try {
+                const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
+                if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
+                withdrawal.status = "Paid"; await withdrawal.save();
+                bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
+                bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\nYour payout has been sent to your bank.`, { parse_mode: 'Markdown' });
+            } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
+        }
+
+        if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes('New Support Ticket')) {
+            const textMatch = msg.reply_to_message.text.match(/\((\d+)\)/); 
+            if (textMatch && textMatch[1]) {
+                const customerId = textMatch[1];
+                const adminReply = `👨‍💻 *Message from Admin:*\n\n${msg.text}`;
+                bot.sendMessage(customerId, adminReply, { parse_mode: 'Markdown' })
+                    .then(() => bot.sendMessage(ADMIN_ID, `✅ Reply sent to customer.`))
+                    .catch(() => bot.sendMessage(ADMIN_ID, `❌ Failed to send reply.`));
+            }
+        }
     });
 }
 
