@@ -18,7 +18,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const ADMIN_ID = "8067627422"; 
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://your-app-url.com"; // Set your actual Web App URL here
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://sharepoint-wjdg.onrender.com"; // <-- URL Integrated Here
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -77,7 +77,7 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. CORE ROUTES
+// 3. SMART LOGIN & DASHBOARD
 // ==========================================
 app.post('/api/login', async (req, res) => {
     const { tgId, name, referredBy } = req.body;
@@ -115,16 +115,33 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
         const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
         const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
-        res.json({ users: users, pendingWithdrawals: pendingWithdrawals });
+        const plans = await Plan.find({}); // Fetch plans for the admin edit view
+        res.json({ users: users, pendingWithdrawals: pendingWithdrawals, plans: plans });
     } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
 });
 
 app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
     const { name, cost, dailyReturn, duration, icon } = req.body;
     try {
-        const plan = new Plan({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon });
-        await plan.save(); res.json({ success: true, plan: plan });
+        const plan = new Plan({ name, cost, dailyReturn, duration, icon });
+        await plan.save(); res.json({ success: true, plan });
     } catch (err) { res.status(500).json({ error: "Failed to add plan" }); }
+});
+
+app.post('/api/admin/plan/edit', isAdmin, async (req, res) => {
+    const { planId, name, cost, dailyReturn, duration, icon } = req.body;
+    try {
+        await Plan.findByIdAndUpdate(planId, { name, cost, dailyReturn, duration, icon });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to edit plan" }); }
+});
+
+app.post('/api/admin/plan/delete', isAdmin, async (req, res) => {
+    const { planId } = req.body;
+    try {
+        await Plan.findByIdAndDelete(planId);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: "Failed to delete plan" }); }
 });
 
 app.post('/api/admin/ban', isAdmin, async (req, res) => {
@@ -240,9 +257,6 @@ app.post('/webhook/squad', async (req, res) => {
     } catch (error) { console.error("Webhook Error:", error); }
 });
 
-// ==========================================
-// 5. TELEGRAM BOT LOGIC
-// ==========================================
 if (bot) {
     bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
         const tgId = msg.chat.id.toString();
@@ -252,20 +266,19 @@ if (bot) {
             let user = await User.findOne({ tgId: tgId });
             if (!user) { user = new User({ tgId: tgId, username: name, referredBy: referredBy }); await user.save(); }
             
-            const welcomeMsg = `🌟 *Welcome to SharePoint, ${name}!*\n\n` +
-                               `Unlock your financial potential today. SharePoint is a premium automated earning platform designed to make your money work for you.\n\n` +
-                               `💸 *Why Join Us?*\n` +
-                               `• Earn guaranteed daily yields straight to your wallet.\n` +
-                               `• Make up to *₦50,000+ per day* by investing in our highly profitable digital shares.\n` +
-                               `• Fast, secure, and automated bank withdrawals.\n` +
-                               `• Build a network and earn massive 15% commissions!\n\n` +
-                               `👇 *Tap the button below to launch your dashboard and start earning instantly!*`;
+            const welcomeMsg = `🌟 *Welcome to SharePoint, ${name}!* 🌟\n\n` +
+                               `Are you ready to unlock your financial freedom? SharePoint is an elite automated earning platform designed to generate passive wealth.\n\n` +
+                               `💰 *Why Join SharePoint?*\n` +
+                               `• Earn up to *₦150,000+ daily* directly to your wallet.\n` +
+                               `• Rapid, secure, and automated bank withdrawals.\n` +
+                               `• Gain a massive *15% commission* on every friend you invite!\n\n` +
+                               `👇 *Click the button below to launch your glowing dashboard and start earning instantly!*`;
 
             const opts = {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [[
-                        { text: "🚀 Launch SharePoint Dashboard", web_app: { url: WEBAPP_URL } }
+                        { text: "🚀 Launch SharePoint App", web_app: { url: WEBAPP_URL } }
                     ]]
                 }
             };
@@ -274,19 +287,16 @@ if (bot) {
         } catch (err) { console.error("Bot Start Error:", err); }
     });
 
-    bot.on('message', async (msg) => {
+    bot.onText(/\/paid (.+)/, async (msg, match) => {
         if (msg.chat.id.toString() !== ADMIN_ID) return;
-
-        if (msg.text && msg.text.startsWith('/paid ')) {
-            const refId = msg.text.split(' ')[1].trim();
-            try {
-                const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
-                if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
-                withdrawal.status = "Paid"; await withdrawal.save();
-                bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
-                bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
-            } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
-        }
+        const refId = match[1].trim();
+        try {
+            const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
+            if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
+            withdrawal.status = "Paid"; await withdrawal.save();
+            bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
+            bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
+        } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
     });
 }
 
