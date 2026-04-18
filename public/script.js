@@ -21,15 +21,14 @@ const ADMIN_ID = "8067627422";
 const SUPPORT_BOT_LINK = "https://t.me/SharePoint_support_system_bot";
 
 // ==========================================
-// 1. INSTANT BOOT SEQUENCE (PREVENTS GETTING STUCK)
+// 1. INSTANT BOOT SEQUENCE
 // ==========================================
 window.onload = function() {
-    // 1. Immediately show dashboard UI so it doesn't get stuck blank
+    // Show Dashboard instantly to prevent getting stuck on blank page
     switchTab('dashboard');
     document.getElementById('userNameDisplay').innerText = USER_NAME;
-    document.getElementById('userIdDisplay').innerText = USER_ID;
 
-    // 2. Setup Admin Tabs securely
+    // Admin Tab Visibility
     if (USER_ID !== ADMIN_ID) {
         var adminView = document.getElementById('adminView');
         var tabAdmin = document.getElementById('tab-admin');
@@ -47,13 +46,12 @@ window.onload = function() {
             }
         }
     }
-    
-    // 3. Fetch data in the background
+
     loadDashboard();
 };
 
 // ==========================================
-// 2. EXTERNAL SUPPORT BOT LINK
+// 2. SUPPORT BOT REDIRECT
 // ==========================================
 function openSupportBot() {
     tg.HapticFeedback.impactOccurred('medium');
@@ -61,14 +59,15 @@ function openSupportBot() {
 }
 
 // ==========================================
-// 3. LOAD & RENDER DATA (NAIRA ONLY)
+// 3. LOAD DASHBOARD & RENDER PLANS
 // ==========================================
 async function loadDashboard() {
-    tg.MainButton.text = "Syncing Network..."; tg.MainButton.show(); tg.MainButton.showProgress();
+    tg.MainButton.text = "Syncing Data..."; tg.MainButton.show(); tg.MainButton.showProgress();
     
     try {
         const res = await fetch('/api/login', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tgId: USER_ID, name: USER_NAME, referredBy: REFERRED_BY })
         });
         
@@ -79,87 +78,81 @@ async function loadDashboard() {
         const data = await res.json();
 
         if (data.error === "Banned") {
-            document.body.innerHTML = "<h2 style='color:#EF4444; text-align:center; margin-top:50px; font-family: sans-serif;'>Account Suspended</h2>";
+            document.body.innerHTML = "<h2 style='color:red; text-align:center; margin-top:50px;'>Account Suspended</h2>";
             return;
         }
 
-        renderUI(data);
+        document.getElementById('userNameDisplay').innerText = data.user.username || "Investor";
+        document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
+        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
+        document.getElementById('referralCountDisplay').innerText = data.referralCount;
+        document.getElementById('refLinkText').innerText = MY_REF_LINK;
+
+        const plansList = document.getElementById('dynamicPlansList');
+        if (data.plans && data.plans.length > 0) {
+            plansList.innerHTML = data.plans.map(plan => {
+                const totalEarn = plan.dailyReturn * plan.duration;
+
+                return `
+                <div class="card rounded-[24px] p-6 mb-5 hover:border-[#D4AF37] transition shadow-md">
+                    <div class="flex justify-between items-center mb-5">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center border border-[#D4AF37]/30 shadow-inner">
+                                <i class="fa-solid ${plan.icon} text-[#D4AF37] text-2xl drop-shadow-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xl font-black text-gray-900">${plan.name}</h4>
+                                <p class="text-xs text-[#D4AF37] font-bold tracking-widest uppercase">Cost: ₦${plan.cost.toLocaleString()}</p>
+                            </div>
+                        </div>
+                        <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="btn-gold px-5 py-2.5 rounded-xl text-sm font-extrabold shadow-lg">Buy</button>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 border border-gray-200">
+                        <div class="flex justify-between border-b border-gray-200 pb-2 mb-2">
+                            <span class="font-semibold text-gray-500">Daily Return:</span> 
+                            <span class="font-bold text-gray-900">₦${plan.dailyReturn.toLocaleString()}</span>
+                        </div>
+                        <div class="flex justify-between pt-1">
+                            <span class="font-semibold text-gray-500">Total Yield (${plan.duration} Days):</span> 
+                            <span class="font-extrabold text-gold">₦${totalEarn.toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>`
+            }).join('');
+        } else {
+            plansList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-gray-300"><p class="text-gray-500 font-bold text-sm">No plans available right now.</p></div>`;
+        }
+
+        const invList = document.getElementById('investmentsList');
+        if (data.investments && data.investments.length > 0) {
+            invList.innerHTML = data.investments.map(inv => `
+                <div class="card rounded-2xl p-5 flex justify-between items-center border-l-4 border-l-gold shadow-sm">
+                    <div>
+                        <h4 class="font-extrabold text-gray-900 text-base">${inv.shareName}</h4>
+                        <p class="text-xs text-[#D4AF37] font-bold mt-1">+₦${inv.dailyReturn.toLocaleString()} Daily</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-3xl font-black text-gray-900">${inv.daysLeft}</p>
+                        <p class="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Days Left</p>
+                    </div>
+                </div>
+            `).join('');
+        } else { invList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-gray-300"><p class="text-gray-500 font-bold text-sm">No active investments.</p></div>`; }
+
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
     } catch (error) { 
-        tg.MainButton.hide(); 
-        tg.showAlert("Network Connection Error.");
+        tg.MainButton.hide();
+        tg.showAlert("Network error. Please try again."); 
     }
 }
 
-function renderUI(data) {
-    document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
-    document.getElementById('withdrawableBalanceDisplay').innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
-    document.getElementById('referralCountDisplay').innerText = data.referralCount;
-    document.getElementById('refLinkText').innerText = MY_REF_LINK;
-
-    const plansList = document.getElementById('dynamicPlansList');
-    if (data.plans && data.plans.length > 0) {
-        plansList.innerHTML = data.plans.map(plan => {
-            return `
-            <div class="glass-panel p-5 border border-[#D4AF37]/20 hover:border-[#D4AF37]/60 transition shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                <div class="flex justify-between items-center mb-5">
-                    <div class="flex items-center gap-4">
-                        <div class="w-14 h-14 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center relative shadow-inner">
-                            <i class="fa-solid ${plan.icon} text-[#FCF6BA] text-2xl drop-shadow-[0_0_8px_rgba(212,175,55,0.8)]"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-black text-white text-xl tracking-tight">${plan.name}</h4>
-                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1">Duration: ${plan.duration} Days</p>
-                        </div>
-                    </div>
-                    <div class="bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 rounded-full text-xs font-black text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                        + ₦${plan.dailyReturn.toLocaleString()} / Day
-                    </div>
-                </div>
-                
-                <div class="w-full bg-black/60 rounded-full h-1.5 mb-5 shadow-inner">
-                    <div class="bg-gradient-to-r from-[#BF953F] to-[#FCF6BA] h-1.5 rounded-full w-full shadow-[0_0_10px_rgba(212,175,55,0.8)]"></div>
-                </div>
-                
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Investment Cost</p>
-                        <p class="text-2xl font-black text-[#FCF6BA] mt-0.5">₦${plan.cost.toLocaleString()}</p>
-                    </div>
-                    <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="btn-primary px-8 py-3 rounded-full text-sm font-black shadow-lg">Purchase</button>
-                </div>
-            </div>`
-        }).join('');
-    } else {
-        plansList.innerHTML = `<div class="glass-panel p-8 text-center border-dashed border-2 border-[#D4AF37]/20"><p class="text-[#D4AF37] text-sm font-bold tracking-widest uppercase">No assets available right now.</p></div>`;
-    }
-
-    const invList = document.getElementById('investmentsList');
-    if (data.investments && data.investments.length > 0) {
-        invList.innerHTML = data.investments.map(inv => `
-            <div class="glass-panel p-5 flex justify-between items-center border-l-4 border-l-[#D4AF37] hover:bg-white/5 transition shadow-lg">
-                <div class="flex items-center gap-4">
-                     <div class="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center text-[#FCF6BA]">
-                         <i class="fa-solid fa-chart-pie text-2xl drop-shadow-[0_0_8px_rgba(212,175,55,0.5)]"></i>
-                     </div>
-                     <div>
-                        <h4 class="font-black text-white text-lg tracking-tight">${inv.shareName}</h4>
-                        <p class="text-xs text-emerald-400 font-black mt-1 tracking-wider">+₦${inv.dailyReturn.toLocaleString()} Daily</p>
-                     </div>
-                </div>
-                <div class="text-right">
-                    <p class="text-3xl font-black text-white drop-shadow-md">${inv.daysLeft}</p>
-                    <p class="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Days Left</p>
-                </div>
-            </div>
-        `).join('');
-    } else { invList.innerHTML = `<div class="glass-panel p-8 text-center border-dashed border-2 border-[#D4AF37]/20"><p class="text-[#D4AF37] text-sm font-bold tracking-widest uppercase">No active portfolio.</p></div>`; }
-}
-
 // ==========================================
-// 4. ADMIN PANEL LOGIC 
+// 4. ADMIN PANEL (EDIT / DELETE PLANS)
 // ==========================================
+let editingPlanId = null;
+
 function switchAdminSubTab(tab) {
     var tabs = ['withdrawals', 'plans', 'users'];
     for(var i=0; i<tabs.length; i++) {
@@ -176,31 +169,72 @@ async function loadAdminStats() {
         const data = await res.json();
 
         document.getElementById('adminWithdrawalList').innerHTML = data.pendingWithdrawals.map(w => `
-            <div class="glass-panel p-5 border-l-4 border-l-red-500">
-                <p class="text-[10px] text-gray-400 font-bold mb-2 tracking-widest uppercase">ID: ${w.refId}</p>
-                <p class="font-black text-white text-lg mb-1">${w.userName} requested <span class="text-emerald-400 drop-shadow-md">₦${w.amount.toLocaleString()}</span></p>
-                <p class="text-xs text-gray-400 font-bold mb-4">${w.bankName} - ${w.accountNumber}</p>
+            <div class="card p-5 rounded-2xl border-l-4 border-l-red-500 shadow-sm">
+                <p class="text-xs text-gray-400 font-bold">ID: ${w.refId}</p>
+                <p class="font-extrabold text-gray-900 mt-1">${w.userName} requested <span class="text-emerald-500">₦${w.amount.toLocaleString()}</span></p>
+                <p class="text-sm text-gray-600 mb-3">${w.bankName} - ${w.accountNumber}</p>
                 <div class="flex gap-3">
-                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black py-3 rounded-xl text-xs font-black shadow-[0_0_15px_rgba(16,185,129,0.4)] transition">Approve</button>
-                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 btn-glow py-3 rounded-xl text-xs font-bold transition">Reject</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-bold shadow-md">Approve</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-bold">Reject</button>
                 </div>
             </div>
-        `).join('') || `<div class="glass-panel p-6 text-center border-dashed border-2 border-red-500/20"><p class="text-red-400 text-sm font-bold tracking-widest uppercase">No pending requests.</p></div>`;
+        `).join('') || `<p class="text-gray-400 text-sm font-medium">No pending requests.</p>`;
 
         document.getElementById('adminUsersList').innerHTML = data.users.map(u => `
-            <div class="glass-panel p-4 flex justify-between items-center mb-3">
+            <div class="card p-4 rounded-xl flex justify-between items-center mb-3">
                 <div>
-                    <p class="font-bold text-white text-sm">${u.username || 'Unknown'}</p>
-                    <p class="text-[10px] text-gray-400 uppercase font-bold mt-1.5 tracking-wider">Bal: ₦${u.walletBalance.toLocaleString()} | Earn: ₦${u.withdrawableBalance.toLocaleString()}</p>
+                    <p class="font-bold text-gray-900 text-sm">${u.username || 'Unknown'}</p>
+                    <p class="text-[10px] text-gray-500 font-bold uppercase mt-1">Bal: ₦${u.walletBalance.toLocaleString()} | Earn: ₦${u.withdrawableBalance.toLocaleString()}</p>
                 </div>
-                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-5 py-2.5 rounded-full text-xs font-bold transition ${u.isBanned ? 'bg-black/50 text-gray-500 border border-white/10' : 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white shadow-[0_0_10px_rgba(220,38,38,0.3)]'}">${u.isBanned ? 'Unban' : 'Ban User'}</button>
+                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 border border-red-200'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
+            </div>
+        `).join('');
+
+        // Render Existing Plans for Editing/Deleting
+        document.getElementById('adminExistingPlans').innerHTML = data.plans.map(p => `
+            <div class="card p-4 rounded-xl border border-gray-200 flex justify-between items-center">
+                <div>
+                    <p class="font-extrabold text-gray-900 text-sm">${p.name}</p>
+                    <p class="text-[10px] text-gray-500 font-bold uppercase mt-1">Cost: ₦${p.cost.toLocaleString()} | Daily: ₦${p.dailyReturn.toLocaleString()}</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="startEditPlan('${p._id}', '${p.name}', '${p.icon}', ${p.cost}, ${p.dailyReturn}, ${p.duration})" class="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center"><i class="fa-solid fa-pen"></i></button>
+                    <button onclick="adminDeletePlan('${p._id}')" class="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>
+                </div>
             </div>
         `).join('');
 
     } catch (e) {}
 }
 
-async function adminAddPlan() {
+function startEditPlan(id, name, icon, cost, daily, duration) {
+    editingPlanId = id;
+    document.getElementById('newPlanName').value = name;
+    document.getElementById('newPlanIcon').value = icon;
+    document.getElementById('newPlanCost').value = cost;
+    document.getElementById('newPlanDaily').value = daily;
+    document.getElementById('newPlanDuration').value = duration;
+    
+    document.getElementById('planFormTitle').innerText = "Edit Plan";
+    document.getElementById('planSubmitBtn').innerText = "Update Plan";
+    document.getElementById('cancelEditBtn').classList.remove('hidden');
+    window.scrollTo(0, 0);
+}
+
+function cancelEditPlan() {
+    editingPlanId = null;
+    document.getElementById('newPlanName').value = "";
+    document.getElementById('newPlanIcon').value = "";
+    document.getElementById('newPlanCost').value = "";
+    document.getElementById('newPlanDaily').value = "";
+    document.getElementById('newPlanDuration').value = "";
+    
+    document.getElementById('planFormTitle').innerText = "Publish New Plan";
+    document.getElementById('planSubmitBtn').innerText = "Publish Plan";
+    document.getElementById('cancelEditBtn').classList.add('hidden');
+}
+
+async function adminSubmitPlan() {
     const name = document.getElementById('newPlanName').value;
     const icon = document.getElementById('newPlanIcon').value || "fa-gem";
     const cost = Number(document.getElementById('newPlanCost').value);
@@ -209,21 +243,40 @@ async function adminAddPlan() {
 
     if(!name || !cost || !dailyReturn || !duration) return tg.showAlert("Fill all fields.");
 
-    tg.MainButton.text = "Adding..."; tg.MainButton.show();
+    const payload = { name, cost, dailyReturn, duration, icon };
+    let url = '/api/admin/plan/add';
     
-    await fetch('/api/admin/plan/add', {
+    if (editingPlanId) {
+        payload.planId = editingPlanId;
+        url = '/api/admin/plan/edit';
+    }
+
+    tg.MainButton.text = editingPlanId ? "Updating Plan..." : "Publishing Plan..."; 
+    tg.MainButton.show();
+    
+    await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-        body: JSON.stringify({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon })
+        body: JSON.stringify(payload)
     });
     
     tg.MainButton.hide(); 
-    tg.showAlert("Plan Published!"); 
-    
-    document.getElementById('newPlanName').value = "";
-    document.getElementById('newPlanCost').value = "";
-    document.getElementById('newPlanDaily').value = "";
-    document.getElementById('newPlanDuration').value = "";
+    tg.showAlert(editingPlanId ? "Plan Updated Successfully!" : "Plan Published Successfully!"); 
+    cancelEditPlan();
     loadDashboard();
+}
+
+async function adminDeletePlan(planId) {
+    tg.showConfirm("Are you sure you want to permanently delete this plan?", async (conf) => {
+        if (!conf) return;
+        tg.MainButton.text = "Deleting..."; tg.MainButton.show();
+        await fetch('/api/admin/plan/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
+            body: JSON.stringify({ planId })
+        });
+        tg.MainButton.hide();
+        tg.showAlert("Plan deleted.");
+        loadDashboard();
+    });
 }
 
 async function resolveWithdrawal(refId, action) {
@@ -265,12 +318,12 @@ function buyDynamicShare(planId, planName, cost) {
             tg.MainButton.hide();
             if (result.success) { 
                 tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert("✅ Success! Asset added to portfolio."); 
+                tg.showAlert("✅ Success! Asset purchased."); 
                 loadDashboard(); 
                 switchTab('portfolio'); 
             }
             else { tg.showAlert(`❌ ${result.error}`); }
-        } catch (e) { tg.MainButton.hide(); tg.showAlert("Transaction Failed."); }
+        } catch (e) { tg.MainButton.hide(); tg.showAlert("Transaction failed."); }
     });
 }
 
@@ -285,18 +338,16 @@ function switchTab(tabId) {
         if(viewEl) viewEl.classList.add('hidden');
         
         if(tabEl) {
-            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center justify-center text-red-500/50 hover:text-red-400 w-1/5 h-16 transition";
-            else tabEl.className = "flex flex-col items-center justify-center text-gray-500 hover:text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " h-16 transition";
+            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-300 hover:text-red-500 w-1/5 transition";
+            else tabEl.className = "flex flex-col items-center text-gray-400 hover:text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
             
             var icon = tabEl.querySelector('i');
             if(icon) {
-                icon.classList.remove('drop-shadow-[0_0_10px_rgba(212,175,55,0.8)]');
-                icon.classList.remove('text-2xl');
+                icon.classList.remove('drop-shadow-md', 'text-2xl');
                 icon.classList.add('text-xl');
             }
-            
             var text = tabEl.querySelector('span');
-            if(text) { text.classList.remove('font-black'); text.classList.add('font-bold'); }
+            if(text) { text.classList.remove('font-extrabold'); text.classList.add('font-bold'); }
         }
     }
 
@@ -305,42 +356,54 @@ function switchTab(tabId) {
 
     var selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
-        selectedTab.className = "flex flex-col items-center justify-center text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " h-16 transition";
+        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-600 w-1/5 transition";
+        else selectedTab.className = "flex flex-col items-center text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+        
         var iconActive = selectedTab.querySelector('i');
         if(iconActive) {
-            iconActive.classList.add('drop-shadow-[0_0_10px_rgba(212,175,55,0.8)]');
+            iconActive.classList.add('drop-shadow-md', 'text-2xl');
             iconActive.classList.remove('text-xl');
-            iconActive.classList.add('text-2xl');
         }
-        
         var textActive = selectedTab.querySelector('span');
-        if(textActive) { textActive.classList.remove('font-bold'); textActive.classList.add('font-black'); }
+        if(textActive) { textActive.classList.remove('font-bold'); textActive.classList.add('font-extrabold'); }
     }
-    window.scrollTo(0, 0);
+    window.scrollTo(0,0);
 }
 
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
-    document.getElementById('dashboardView').classList.add('hidden');
-    document.getElementById('bottomNav').classList.add('hidden');
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    for(var i=0; i<ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if(el) el.classList.add('hidden');
+    }
     document.getElementById('depositView').classList.remove('hidden');
-    window.scrollTo(0, 0);
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        document.getElementById('depositView').classList.add('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        switchTab('dashboard');
+        tg.BackButton.hide();
+    });
+    window.scrollTo(0,0);
 }
 
 function showWithdrawPage() {
     tg.HapticFeedback.impactOccurred('light');
-    document.getElementById('dashboardView').classList.add('hidden');
-    document.getElementById('bottomNav').classList.add('hidden');
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    for(var i=0; i<ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if(el) el.classList.add('hidden');
+    }
     document.getElementById('withdrawView').classList.remove('hidden');
-    window.scrollTo(0, 0);
-}
-
-function goBackToHome() {
-    tg.HapticFeedback.selectionChanged();
-    document.getElementById('depositView').classList.add('hidden');
-    document.getElementById('withdrawView').classList.add('hidden');
-    document.getElementById('dashboardView').classList.remove('hidden');
-    document.getElementById('bottomNav').classList.remove('hidden');
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        document.getElementById('withdrawView').classList.add('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        switchTab('dashboard');
+        tg.BackButton.hide();
+    });
+    window.scrollTo(0,0);
 }
 
 function setAmount(amount) {
@@ -352,62 +415,13 @@ function copyRefLink() {
     tg.HapticFeedback.impactOccurred('medium');
     const tempInput = document.createElement("input"); tempInput.value = MY_REF_LINK; document.body.appendChild(tempInput);
     tempInput.select(); document.execCommand("copy"); document.body.removeChild(tempInput);
-    tg.showAlert("✅ Link copied successfully!");
+    tg.showAlert("✅ Link copied!");
 }
 function shareLink() {
-    const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(MY_REF_LINK) + "&text=Join my premium network on SharePoint and start earning daily yields!";
+    const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(MY_REF_LINK) + "&text=Join my premium network on SharePoint and start earning daily returns!";
     tg.openTelegramLink(shareUrl);
 }
 
 async function fundWallet() {
     const amount = Number(document.getElementById('depositAmount').value);
-    if (!amount || amount < 100) return tg.showAlert("Minimum deposit is ₦100.");
-    
-    const btn = document.getElementById('generateLinkBtn');
-    tg.HapticFeedback.impactOccurred('medium');
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Generating Gateway..."; btn.disabled = true; 
-
-    try {
-        const response = await fetch('/api/fund', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, amount: amount })
-        });
-        const result = await response.json();
-        btn.innerText = originalText; btn.disabled = false;
-
-        if (result.success) tg.openLink(result.checkoutUrl);
-        else tg.showAlert(`❌ Error: ${result.error}`);
-    } catch (error) {
-        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network connection error.");
-    }
-}
-
-async function processWithdrawal() {
-    const amount = Number(document.getElementById('withdrawAmount').value);
-    const bank = document.getElementById('withdrawBank').value;
-    const accNo = document.getElementById('withdrawAccNo').value;
-    const accName = document.getElementById('withdrawAccName').value;
-    
-    if (!amount || amount < 1000) return tg.showAlert("Minimum withdrawal is ₦1,000.");
-    if (!bank || !accNo || !accName) return tg.showAlert("Please fill all banking details.");
-
-    const btn = document.getElementById('withdrawBtn');
-    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/api/withdraw', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
-        });
-        const result = await response.json();
-        tg.MainButton.hide(); btn.disabled = false;
-
-        if (result.success) {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert("✅ Withdrawal request submitted successfully!");
-            goBackToHome();
-            loadDashboard();
-        } else { tg.showAlert(`❌ Error: ${result.error}`); }
-    } catch (e) { tg.MainButton.hide(); bt
+    const btn = document.getElementById
