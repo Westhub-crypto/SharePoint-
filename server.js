@@ -18,6 +18,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const ADMIN_ID = "8067627422"; 
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://your-app-url.com"; // Set your actual Web App URL here
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -239,6 +240,9 @@ app.post('/webhook/squad', async (req, res) => {
     } catch (error) { console.error("Webhook Error:", error); }
 });
 
+// ==========================================
+// 5. TELEGRAM BOT LOGIC
+// ==========================================
 if (bot) {
     bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
         const tgId = msg.chat.id.toString();
@@ -247,7 +251,26 @@ if (bot) {
         try {
             let user = await User.findOne({ tgId: tgId });
             if (!user) { user = new User({ tgId: tgId, username: name, referredBy: referredBy }); await user.save(); }
-            bot.sendMessage(tgId, `Welcome to SharePoint, ${name}!\n\nTap the "Open App" button below to start earning.`);
+            
+            const welcomeMsg = `🌟 *Welcome to SharePoint, ${name}!*\n\n` +
+                               `Unlock your financial potential today. SharePoint is a premium automated earning platform designed to make your money work for you.\n\n` +
+                               `💸 *Why Join Us?*\n` +
+                               `• Earn guaranteed daily yields straight to your wallet.\n` +
+                               `• Make up to *₦50,000+ per day* by investing in our highly profitable digital shares.\n` +
+                               `• Fast, secure, and automated bank withdrawals.\n` +
+                               `• Build a network and earn massive 15% commissions!\n\n` +
+                               `👇 *Tap the button below to launch your dashboard and start earning instantly!*`;
+
+            const opts = {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: "🚀 Launch SharePoint Dashboard", web_app: { url: WEBAPP_URL } }
+                    ]]
+                }
+            };
+
+            bot.sendMessage(tgId, welcomeMsg, opts);
         } catch (err) { console.error("Bot Start Error:", err); }
     });
 
