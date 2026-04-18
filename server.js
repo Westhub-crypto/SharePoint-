@@ -18,7 +18,8 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const ADMIN_ID = "8067627422"; 
-const WEB_APP_URL = "https://sharepoint-wjdg.onrender.com";
+// 👇 THE CACHE BUSTER IS RIGHT HERE 👇
+const WEB_APP_URL = "https://sharepoint-wjdg.onrender.com/?v=5"; 
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -100,7 +101,6 @@ app.post('/api/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server error" }); }
 });
 
-// Support Ticket Route
 app.post('/api/support/send', async (req, res) => {
     const { tgId, username, topic, message } = req.body;
     try {
