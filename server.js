@@ -76,7 +76,7 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. CORE ROUTES & SUPPORT
+// 3. CORE ROUTES
 // ==========================================
 app.post('/api/login', async (req, res) => {
     const { tgId, name, referredBy } = req.body;
@@ -100,18 +100,6 @@ app.post('/api/login', async (req, res) => {
             referralCount: referralCount
         });
     } catch (err) { res.status(500).json({ error: "Server error" }); }
-});
-
-// NEW: Support Ticket Route
-app.post('/api/support/send', async (req, res) => {
-    const { tgId, username, topic, message } = req.body;
-    try {
-        if (bot && ADMIN_ID) {
-            const supportMsg = `📩 *New Support Ticket*\n\n👤 *User:* ${username}\n🆔 *ID:* (${tgId})\n📌 *Topic:* ${topic}\n\n💬 *Message:*\n${message}\n\n_Reply directly to this message to chat with the user._`;
-            bot.sendMessage(ADMIN_ID, supportMsg, { parse_mode: 'Markdown' });
-            res.json({ success: true });
-        } else { res.status(500).json({ error: "Bot offline" }); }
-    } catch (err) { res.status(500).json({ error: "Failed to send message" }); }
 });
 
 // ==========================================
@@ -266,7 +254,6 @@ if (bot) {
     bot.on('message', async (msg) => {
         if (msg.chat.id.toString() !== ADMIN_ID) return;
 
-        // Withdrawal command listener
         if (msg.text && msg.text.startsWith('/paid ')) {
             const refId = msg.text.split(' ')[1].trim();
             try {
@@ -276,18 +263,6 @@ if (bot) {
                 bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
                 bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
             } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
-        }
-
-        // NEW: Support ticket reply listener
-        if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes('New Support Ticket')) {
-            const textMatch = msg.reply_to_message.text.match(/\((\d+)\)/); 
-            if (textMatch && textMatch[1]) {
-                const customerId = textMatch[1];
-                const adminReply = `👨‍💻 *Message from Admin:*\n\n${msg.text}`;
-                bot.sendMessage(customerId, adminReply, { parse_mode: 'Markdown' })
-                    .then(() => bot.sendMessage(ADMIN_ID, `✅ Reply sent to customer.`))
-                    .catch(() => bot.sendMessage(ADMIN_ID, `❌ Failed to send reply.`));
-            }
         }
     });
 }
