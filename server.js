@@ -18,8 +18,6 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const ADMIN_ID = "8067627422"; 
-// 👇 THE CACHE BUSTER IS RIGHT HERE 👇
-const WEB_APP_URL = "https://sharepoint-wjdg.onrender.com/?v=5"; 
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -41,7 +39,7 @@ const UserSchema = new mongoose.Schema({
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
     referredBy: { type: String, default: null },
-    isBanned: { type: Boolean, default: false }
+    isBanned: { type: Boolean, default: false } 
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -78,7 +76,7 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. CORE APP ROUTES
+// 3. SMART LOGIN & DASHBOARD
 // ==========================================
 app.post('/api/login', async (req, res) => {
     const { tgId, name, referredBy } = req.body;
@@ -88,6 +86,7 @@ app.post('/api/login', async (req, res) => {
             user = new User({ tgId: tgId, username: name, referredBy: referredBy });
             await user.save();
         }
+        
         if (user.isBanned) return res.status(403).json({ error: "Banned" });
 
         const plans = await Plan.find({ isActive: true });
@@ -96,20 +95,11 @@ app.post('/api/login', async (req, res) => {
 
         res.json({
             user: { walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, username: user.username || name },
-            plans: plans, investments: investments, referralCount: referralCount
+            plans: plans, 
+            investments: investments, 
+            referralCount: referralCount
         });
     } catch (err) { res.status(500).json({ error: "Server error" }); }
-});
-
-app.post('/api/support/send', async (req, res) => {
-    const { tgId, username, topic, message } = req.body;
-    try {
-        if (bot && ADMIN_ID) {
-            const supportMsg = `📩 *New Support Ticket*\n\n👤 *User:* ${username}\n🆔 *ID:* (${tgId})\n📌 *Topic:* ${topic}\n\n💬 *Message:*\n${message}\n\n_Reply directly to this message to chat with the user._`;
-            bot.sendMessage(ADMIN_ID, supportMsg, { parse_mode: 'Markdown' });
-            res.json({ success: true });
-        } else { res.status(500).json({ error: "Bot offline" }); }
-    } catch (err) { res.status(500).json({ error: "Failed to send message" }); }
 });
 
 // ==========================================
@@ -125,7 +115,7 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
         const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
         const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
         res.json({ users: users, pendingWithdrawals: pendingWithdrawals });
-    } catch (err) { res.status(500).json({ error: "Error fetching stats" }); }
+    } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
 });
 
 app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
@@ -178,6 +168,7 @@ app.post('/api/buy-share', async (req, res) => {
         if (user.walletBalance < plan.cost) return res.status(400).json({ error: "Insufficient Wallet Balance." });
 
         user.walletBalance -= plan.cost; await user.save();
+
         const newInvestment = new Investment({ userId: userId, planId: planId, shareName: plan.name, dailyReturn: plan.dailyReturn, daysLeft: plan.duration });
         await newInvestment.save();
 
@@ -192,18 +183,14 @@ app.post('/api/buy-share', async (req, res) => {
 app.post('/api/withdraw', async (req, res) => {
     const { userId, userName, amount, bankName, accNo, accName } = req.body;
     if (!amount || amount < 1000) return res.status(400).json({ error: "Minimum is ₦1,000" });
-    if (!bankName || !accNo || !accName) return res.status(400).json({ error: "Fill all bank details." });
 
     try {
         const user = await User.findOne({ tgId: userId });
-        if (user.withdrawableBalance < amount) return res.status(400).json({ error: "Insufficient Balance" });
+        if (!user || user.withdrawableBalance < amount) return res.status(400).json({ error: "Insufficient Balance" });
 
         user.withdrawableBalance -= amount; await user.save();
 
-        const request = new Withdrawal({ 
-            userId: userId, userName: userName, amount: amount, 
-            bankName: bankName, accountNumber: accNo, accountName: accName 
-        });
+        const request = new Withdrawal({ userId: userId, userName: userName, amount: amount, bankName: bankName, accountNumber: accNo, accountName: accName });
         await request.save();
 
         if (bot && ADMIN_ID) {
@@ -252,54 +239,28 @@ app.post('/webhook/squad', async (req, res) => {
     } catch (error) { console.error("Webhook Error:", error); }
 });
 
-// ==========================================
-// 5. TELEGRAM BOT LISTENERS
-// ==========================================
 if (bot) {
     bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
         const tgId = msg.chat.id.toString();
-        const name = msg.from.first_name || "Investor";
+        const name = msg.from.first_name || "User";
         const referredBy = match[1] ? match[1].trim() : null; 
         try {
             let user = await User.findOne({ tgId: tgId });
             if (!user) { user = new User({ tgId: tgId, username: name, referredBy: referredBy }); await user.save(); }
-            
-            const welcomeText = `🌟 *Welcome to SharePoint Premium, ${name}!* 🌟\n\nYour ultimate digital asset and investment platform. Grow your portfolio, earn daily returns, and track your success in real-time.\n\n🛡️ *Bank-Grade Security*\n⚡ *Fast Withdrawals*\n👨‍💻 *24/7 Live Support*\n\nTap the button below to launch your dashboard!`;
-            
-            const options = {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [[{ text: "🚀 Launch SharePoint", web_app: { url: WEB_APP_URL } }]]
-                }
-            };
-            bot.sendMessage(tgId, welcomeText, options);
+            bot.sendMessage(tgId, `Welcome to SharePoint, ${name}!\n\nTap the "Open App" button below to start earning.`);
         } catch (err) { console.error("Bot Start Error:", err); }
     });
 
-    bot.on('message', async (msg) => {
+    bot.onText(/\/paid (.+)/, async (msg, match) => {
         if (msg.chat.id.toString() !== ADMIN_ID) return;
-
-        if (msg.text && msg.text.startsWith('/paid ')) {
-            const refId = msg.text.split(' ')[1].trim();
-            try {
-                const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
-                if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
-                withdrawal.status = "Paid"; await withdrawal.save();
-                bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
-                bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
-            } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
-        }
-
-        if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes('New Support Ticket')) {
-            const textMatch = msg.reply_to_message.text.match(/\((\d+)\)/); 
-            if (textMatch && textMatch[1]) {
-                const customerId = textMatch[1];
-                const adminReply = `👨‍💻 *Message from Admin:*\n\n${msg.text}`;
-                bot.sendMessage(customerId, adminReply, { parse_mode: 'Markdown' })
-                    .then(() => bot.sendMessage(ADMIN_ID, `✅ Reply sent to customer.`))
-                    .catch(() => bot.sendMessage(ADMIN_ID, `❌ Failed to send reply.`));
-            }
-        }
+        const refId = match[1].trim();
+        try {
+            const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
+            if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
+            withdrawal.status = "Paid"; await withdrawal.save();
+            bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
+            bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
+        } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
     });
 }
 
