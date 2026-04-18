@@ -18,7 +18,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY || "";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const ADMIN_ID = "8067627422"; 
-const WEBAPP_URL = process.env.WEBAPP_URL || "https://sharepoint-wjdg.onrender.com"; // <-- URL Integrated Here
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://sharepoint-wjdg.onrender.com";
 
 const SQUAD_INITIATE_URL = SQUAD_SECRET_KEY.startsWith("sandbox_") 
     ? "https://sandbox-api-d.squadco.com/transaction/initiate" 
@@ -115,8 +115,7 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
         const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
         const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
-        const plans = await Plan.find({}); // Fetch plans for the admin edit view
-        res.json({ users: users, pendingWithdrawals: pendingWithdrawals, plans: plans });
+        res.json({ users: users, pendingWithdrawals: pendingWithdrawals });
     } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
 });
 
@@ -126,22 +125,6 @@ app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
         const plan = new Plan({ name, cost, dailyReturn, duration, icon });
         await plan.save(); res.json({ success: true, plan });
     } catch (err) { res.status(500).json({ error: "Failed to add plan" }); }
-});
-
-app.post('/api/admin/plan/edit', isAdmin, async (req, res) => {
-    const { planId, name, cost, dailyReturn, duration, icon } = req.body;
-    try {
-        await Plan.findByIdAndUpdate(planId, { name, cost, dailyReturn, duration, icon });
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "Failed to edit plan" }); }
-});
-
-app.post('/api/admin/plan/delete', isAdmin, async (req, res) => {
-    const { planId } = req.body;
-    try {
-        await Plan.findByIdAndDelete(planId);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "Failed to delete plan" }); }
 });
 
 app.post('/api/admin/ban', isAdmin, async (req, res) => {
