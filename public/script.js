@@ -23,7 +23,6 @@ const ADMIN_ID = "8067627422";
 // 1. INSTANT BOOT SEQUENCE
 // ==========================================
 window.onload = function() {
-    // SECURITY PURGE
     if (USER_ID !== ADMIN_ID) {
         var adminView = document.getElementById('adminView');
         var tabAdmin = document.getElementById('tab-admin');
@@ -41,8 +40,6 @@ window.onload = function() {
             }
         }
     }
-
-    // Go straight into loading the dashboard
     loadDashboard();
 };
 
@@ -61,10 +58,7 @@ async function loadDashboard() {
         
         tg.MainButton.hide();
 
-        if (!res.ok) {
-            tg.showAlert("Server is offline. Try again.");
-            return;
-        }
+        if (!res.ok) return tg.showAlert("Server is offline. Try again.");
 
         const data = await res.json();
 
@@ -87,58 +81,55 @@ async function loadDashboard() {
                 const monthlyEarn = plan.dailyReturn * 30; 
 
                 return `
-                <div class="card rounded-3xl p-5 mb-4">
+                <div class="card rounded-3xl p-5 mb-4 shadow-sm border border-purple-100">
                     <div class="flex justify-between items-center mb-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-blue-600/20 flex items-center justify-center border border-blue-500/30">
-                                <i class="fa-solid ${plan.icon} text-blue-400 text-xl"></i>
+                            <div class="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center border border-purple-200">
+                                <i class="fa-solid ${plan.icon} text-purple-600 text-xl"></i>
                             </div>
                             <div>
-                                <h4 class="text-lg font-bold text-white">${plan.name}</h4>
-                                <p class="text-xs text-emerald-400 font-bold">Cost: ₦${plan.cost.toLocaleString()}</p>
+                                <h4 class="text-lg font-bold text-gray-800">${plan.name}</h4>
+                                <p class="text-xs text-[#D4AF37] font-bold">Cost: ₦${plan.cost.toLocaleString()}</p>
                             </div>
                         </div>
-                        <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition active:scale-95">Buy</button>
+                        <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-bold transition active:scale-95 shadow">Buy</button>
                     </div>
                     
-                    <div class="bg-[#0B0E14] rounded-xl p-4 text-sm text-gray-300 space-y-2 border border-[#222834]">
-                        <div class="flex justify-between border-b border-[#222834] pb-1"><span>Daily Return:</span> <span class="font-bold text-emerald-400">₦${plan.dailyReturn.toLocaleString()}</span></div>
-                        <div class="flex justify-between border-b border-[#222834] pb-1"><span>Weekly Return:</span> <span class="font-bold text-white">₦${weeklyEarn.toLocaleString()}</span></div>
-                        <div class="flex justify-between border-b border-[#222834] pb-1"><span>Monthly Return:</span> <span class="font-bold text-white">₦${monthlyEarn.toLocaleString()}</span></div>
-                        <div class="flex justify-between pt-1"><span>Total Profit (${plan.duration} Days):</span> <span class="font-bold text-blue-400">₦${totalEarn.toLocaleString()}</span></div>
+                    <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-2 border border-gray-100">
+                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>Daily Return:</span> <span class="font-bold text-green-600">₦${plan.dailyReturn.toLocaleString()}</span></div>
+                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>Weekly Return:</span> <span class="font-bold text-gray-800">₦${weeklyEarn.toLocaleString()}</span></div>
+                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>Monthly Return:</span> <span class="font-bold text-gray-800">₦${monthlyEarn.toLocaleString()}</span></div>
+                        <div class="flex justify-between pt-1"><span>Total Profit (${plan.duration} Days):</span> <span class="font-bold text-purple-700">₦${totalEarn.toLocaleString()}</span></div>
                     </div>
                 </div>`
             }).join('');
         } else {
-            plansList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-500 text-sm">No plans available right now.</p></div>`;
+            plansList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-400 text-sm">No plans available right now.</p></div>`;
         }
 
         const invList = document.getElementById('investmentsList');
         if (data.investments && data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => `
-                <div class="card rounded-2xl p-5 flex justify-between items-center">
+                <div class="card rounded-2xl p-5 flex justify-between items-center shadow border-l-4 border-l-purple-500">
                     <div>
-                        <h4 class="font-bold text-white text-sm">${inv.shareName}</h4>
-                        <p class="text-xs text-emerald-400 font-medium">+₦${inv.dailyReturn} Daily</p>
+                        <h4 class="font-bold text-gray-800 text-sm">${inv.shareName}</h4>
+                        <p class="text-xs text-green-500 font-medium">+₦${inv.dailyReturn} Daily</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-2xl font-bold text-blue-400">${inv.daysLeft}</p>
+                        <p class="text-2xl font-bold text-[#D4AF37]">${inv.daysLeft}</p>
                         <p class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Days Left</p>
                     </div>
                 </div>
             `).join('');
-        } else { invList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-500 text-sm">No active investments.</p></div>`; }
+        } else { invList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-400 text-sm">No active investments.</p></div>`; }
 
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
-    } catch (error) { 
-        tg.MainButton.hide();
-        tg.showAlert("Network error. Please wait for the server to wake up."); 
-    }
+    } catch (error) { tg.MainButton.hide(); }
 }
 
 // ==========================================
-// 3. ADMIN PANEL LOGIC
+// 3. ADMIN PANEL LOGIC (WITH EDIT & DELETE)
 // ==========================================
 function switchAdminSubTab(tab) {
     var tabs = ['withdrawals', 'plans', 'users'];
@@ -156,28 +147,113 @@ async function loadAdminStats() {
         const data = await res.json();
 
         document.getElementById('adminWithdrawalList').innerHTML = data.pendingWithdrawals.map(w => `
-            <div class="card p-4 rounded-xl border-l-4 border-l-blue-500">
+            <div class="card p-4 rounded-xl border-l-4 border-l-[#D4AF37] shadow-sm">
                 <p class="text-xs text-gray-400">ID: ${w.refId}</p>
-                <p class="font-bold text-white">${w.userName} requested <span class="text-emerald-400">₦${w.amount}</span></p>
-                <p class="text-sm text-gray-300">${w.bankName} - ${w.accountNumber}</p>
+                <p class="font-bold text-gray-800">${w.userName} requested <span class="text-green-500">₦${w.amount}</span></p>
+                <p class="text-sm text-gray-600">${w.bankName} - ${w.accountNumber}</p>
                 <div class="flex gap-2 mt-3">
-                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold">Approve</button>
-                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-[#1A222C] border border-[#222834] text-white py-2 rounded-lg text-xs font-bold">Reject</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-green-500 text-white py-2 rounded-lg text-xs font-bold shadow-sm">Approve</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-xs font-bold shadow-sm">Reject</button>
                 </div>
             </div>
-        `).join('') || `<p class="text-gray-500 text-xs">No pending requests.</p>`;
+        `).join('') || `<p class="text-gray-400 text-xs">No pending requests.</p>`;
+
+        // Render Plans for Editing
+        var plansListAdmin = document.getElementById('adminPlansList');
+        if (plansListAdmin && data.plans) {
+            plansListAdmin.innerHTML = data.plans.map(p => `
+                <div class="card p-3 flex justify-between items-center rounded-xl shadow-sm border border-purple-100">
+                    <div>
+                        <p class="font-bold text-purple-800 text-sm">${p.name}</p>
+                        <p class="text-[10px] text-gray-500 uppercase">Cost: ₦${p.cost} | Daily: ₦${p.dailyReturn} | ${p.duration}d</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editPlanPrompt('${p._id}', '${p.name}', '${p.icon}', ${p.cost}, ${p.dailyReturn}, ${p.duration})" class="bg-[#D4AF37] text-white w-8 h-8 rounded-lg flex items-center justify-center shadow"><i class="fa-solid fa-pen text-xs"></i></button>
+                        <button onclick="deletePlan('${p._id}')" class="bg-red-500 text-white w-8 h-8 rounded-lg flex items-center justify-center shadow"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
 
         document.getElementById('adminUsersList').innerHTML = data.users.map(u => `
-            <div class="card p-3 rounded-xl flex justify-between items-center">
+            <div class="card p-3 rounded-xl flex justify-between items-center shadow-sm">
                 <div>
-                    <p class="font-bold text-white text-sm">${u.username || 'Unknown'}</p>
-                    <p class="text-[10px] text-gray-400 uppercase">Bal: ₦${u.walletBalance} | Earn: ₦${u.withdrawableBalance}</p>
+                    <p class="font-bold text-gray-800 text-sm">${u.username || 'Unknown'}</p>
+                    <p class="text-[10px] text-gray-500 uppercase">Bal: ₦${u.walletBalance} | Earn: ₦${u.withdrawableBalance}</p>
                 </div>
-                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-3 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-[#1A222C] text-gray-300 border border-[#222834]' : 'bg-red-500/20 text-red-400'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
+                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-3 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-red-50 text-red-500'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
             </div>
         `).join('');
 
     } catch (e) {}
+}
+
+// Plan Management Buttons
+function editPlanPrompt(id, name, icon, cost, daily, duration) {
+    document.getElementById('editPlanId').value = id;
+    document.getElementById('newPlanName').value = name;
+    document.getElementById('newPlanIcon').value = icon;
+    document.getElementById('newPlanCost').value = cost;
+    document.getElementById('newPlanDaily').value = daily;
+    document.getElementById('newPlanDuration').value = duration;
+    
+    document.getElementById('planFormTitle').innerText = "Edit Investment Plan";
+    document.getElementById('planSubmitBtn').innerText = "Update Plan";
+    document.getElementById('planCancelBtn').classList.remove('hidden');
+}
+
+function cancelEditPlan() {
+    document.getElementById('editPlanId').value = "";
+    document.getElementById('newPlanName').value = "";
+    document.getElementById('newPlanIcon').value = "fa-gem";
+    document.getElementById('newPlanCost').value = "";
+    document.getElementById('newPlanDaily').value = "";
+    document.getElementById('newPlanDuration').value = "";
+    
+    document.getElementById('planFormTitle').innerText = "Add New Plan";
+    document.getElementById('planSubmitBtn').innerText = "Publish Plan";
+    document.getElementById('planCancelBtn').classList.add('hidden');
+}
+
+async function adminSubmitPlan() {
+    const id = document.getElementById('editPlanId').value;
+    const name = document.getElementById('newPlanName').value;
+    const icon = document.getElementById('newPlanIcon').value || "fa-gem";
+    const cost = Number(document.getElementById('newPlanCost').value);
+    const dailyReturn = Number(document.getElementById('newPlanDaily').value);
+    const duration = Number(document.getElementById('newPlanDuration').value);
+
+    if(!name || !cost || !dailyReturn || !duration) return tg.showAlert("Fill all fields.");
+
+    tg.MainButton.text = id ? "Updating..." : "Adding..."; tg.MainButton.show();
+    
+    const endpoint = id ? '/api/admin/plan/edit' : '/api/admin/plan/add';
+    const payload = { name, cost, dailyReturn, duration, icon };
+    if (id) payload.id = id;
+
+    await fetch(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
+        body: JSON.stringify(payload)
+    });
+    
+    tg.MainButton.hide(); 
+    tg.showAlert(id ? "Plan Updated!" : "Plan Published!"); 
+    cancelEditPlan();
+    loadDashboard();
+}
+
+async function deletePlan(id) {
+    tg.showConfirm(`Delete this plan permanently?`, async (conf) => {
+        if(!conf) return;
+        tg.MainButton.text = "Deleting..."; tg.MainButton.show();
+        await fetch('/api/admin/plan/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
+            body: JSON.stringify({ id: id })
+        });
+        tg.MainButton.hide();
+        tg.showAlert("Plan Deleted!");
+        loadDashboard();
+    });
 }
 
 async function resolveWithdrawal(refId, action) {
@@ -190,23 +266,6 @@ async function resolveWithdrawal(refId, action) {
         });
         tg.MainButton.hide(); tg.showAlert("Resolved!"); loadAdminStats(); loadDashboard();
     });
-}
-
-async function adminAddPlan() {
-    const name = document.getElementById('newPlanName').value;
-    const icon = document.getElementById('newPlanIcon').value || "fa-gem";
-    const cost = Number(document.getElementById('newPlanCost').value);
-    const dailyReturn = Number(document.getElementById('newPlanDaily').value);
-    const duration = Number(document.getElementById('newPlanDuration').value);
-
-    if(!name || !cost || !dailyReturn || !duration) return tg.showAlert("Fill all fields.");
-
-    tg.MainButton.text = "Adding..."; tg.MainButton.show();
-    await fetch('/api/admin/plan/add', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-        body: JSON.stringify({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon })
-    });
-    tg.MainButton.hide(); tg.showAlert("Plan Published!"); loadDashboard();
 }
 
 async function toggleBan(tgId, banStatus) {
@@ -255,8 +314,8 @@ function switchTab(tabId) {
         if(viewEl) viewEl.classList.add('hidden');
         
         if(tabEl) {
-            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-500 w-1/5 opacity-50 transition";
-            else tabEl.className = "flex flex-col items-center text-gray-500 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-[#D4AF37] w-1/5 opacity-50 transition";
+            else tabEl.className = "flex flex-col items-center text-gray-400 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
         }
     }
 
@@ -265,8 +324,8 @@ function switchTab(tabId) {
 
     var selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
-        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-500 w-1/5 opacity-100 transition";
-        else selectedTab.className = "flex flex-col items-center text-blue-500 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition drop-shadow-[0_0_8px_rgba(37,99,235,0.5)]";
+        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-[#D4AF37] w-1/5 opacity-100 transition drop-shadow-sm";
+        else selectedTab.className = "flex flex-col items-center text-purple-700 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition drop-shadow-[0_0_8px_rgba(109,40,217,0.3)]";
     }
 }
 
@@ -354,21 +413,4 @@ async function processWithdrawal() {
     if (!amount || amount < 1000) return tg.showAlert("Min ₦1,000");
     if (!bank || !accNo || !accName) return tg.showAlert("Fill all fields.");
 
-    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/api/withdraw', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
-        });
-        const result = await response.json();
-        tg.MainButton.hide(); btn.disabled = false;
-
-        if (result.success) {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert("✅ Withdrawal request sent!");
-            loadDashboard(); tg.BackButton.click(); 
-        } else { tg.showAlert(`❌ Error: ${result.error}`); }
-    } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
-}
+   
