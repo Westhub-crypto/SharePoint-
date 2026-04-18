@@ -8,190 +8,238 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
         body { 
             -webkit-tap-highlight-color: transparent; 
-            background-color: #FAFAFA; 
-            font-family: 'Inter', sans-serif;
+            background-color: #050A15; /* Even deeper night blue */
+            color: #F8FAFC;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
         }
         ::-webkit-scrollbar { display: none; }
         
-        .btn-dark { background-color: #35363D; color: white; }
-        .btn-dark:active { background-color: #1E1E22; transform: scale(0.98); }
-        
-        .card-light { 
-            background-color: #FFFFFF; 
-            border: 1px solid rgba(212, 175, 55, 0.3); 
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); 
-            border-radius: 20px;
+        /* SPARKLING BACKGROUND ORBS */
+        .ambient-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.4;
+            animation: float 10s infinite ease-in-out alternate;
+        }
+        .orb-1 { top: -10%; left: -10%; width: 300px; height: 300px; background: #3B82F6; }
+        .orb-2 { bottom: -10%; right: -10%; width: 250px; height: 250px; background: #8B5CF6; animation-delay: -5s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 30px) scale(1.1); }
         }
 
-        .input-box { background-color: #F3F4F6; border: 1px solid #E5E7EB; color: #1F2937; }
-        .input-box:focus { border-color: #D4AF37; outline: none; box-shadow: 0 0 0 1px #D4AF37; }
-        
-        /* Modal Blur */
-        .modal-overlay { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); }
+        /* Animated Gradient Balance Card */
+        .animated-gradient-card {
+            background: linear-gradient(-45deg, #1E3A8A, #3B82F6, #0F172A, #1D4ED8);
+            background-size: 400% 400%;
+            animation: gradientBG 8s ease infinite;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card { 
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Glowing Text */
+        .text-glow { text-shadow: 0 0 15px rgba(59, 130, 246, 0.8); }
+
+        /* Glowing Inputs */
+        .input-box { background-color: rgba(15, 23, 42, 0.8); border: 1px solid #1E293B; color: #F8FAFC; }
+        .input-box:focus { border-color: #3B82F6; outline: none; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .input-box::placeholder { color: #64748B; }
+
+        /* Pulsing Primary Buttons */
+        .btn-glow { 
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%); 
+            color: white; 
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.5);
+            transition: all 0.3s ease;
+            animation: pulse-glow 2s infinite;
+        }
+        .btn-glow:active { transform: scale(0.95); animation: none; box-shadow: none; }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(37, 99, 235, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(37, 99, 235, 0.4); }
+        }
+
+        /* Bottom Nav */
+        .bottom-nav-glass { background-color: rgba(5, 10, 21, 0.85); backdrop-filter: blur(20px); border-top: 1px solid rgba(255, 255, 255, 0.05); }
     </style>
 </head>
-<body class="text-gray-800 antialiased pb-28 min-h-screen relative">
+<body class="pb-28">
 
-    <div id="supportModal" class="hidden fixed inset-0 z-[100] flex items-end justify-center modal-overlay">
-        <div class="card-light w-full rounded-b-none rounded-t-[30px] p-6 shadow-2xl translate-y-0 transition-transform">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-extrabold text-gray-900"><i class="fa-solid fa-headset text-[#D4AF37] mr-2"></i>Contact Support</h3>
-                <button onclick="closeSupportModal()" class="text-gray-400 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button>
-            </div>
-            
-            <select id="supportTopic" class="w-full input-box rounded-2xl p-4 mb-4 font-semibold appearance-none">
-                <option value="" disabled selected>Select your issue...</option>
-                <option value="Deposit">Deposit Issue</option>
-                <option value="Withdrawal">Withdrawal Delayed</option>
-                <option value="Bug">App Bug / Glitch</option>
-                <option value="Other">Other Inquiry</option>
-            </select>
-            
-            <textarea id="supportMessage" placeholder="Describe your issue in detail..." rows="4" class="w-full input-box rounded-2xl p-4 mb-5 resize-none"></textarea>
-            
-            <button onclick="sendSupportMessage()" id="supportBtn" class="w-full btn-dark font-bold py-4 rounded-full shadow-lg text-lg">Submit Ticket</button>
-        </div>
-    </div>
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
 
     <div id="mainApp" class="block">
         
         <div class="flex items-center justify-between px-5 pt-6 pb-4">
-            <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">Share<span class="text-[#D4AF37]">Point</span></h1>
-            <button onclick="openSupportModal()" class="flex items-center gap-2 border border-[#D4AF37] text-[#D4AF37] px-3 py-1.5 rounded-xl text-xs font-bold bg-[#D4AF37]/5 transition active:scale-95">
-                <i class="fa-regular fa-comment-dots"></i> Support
+            <div class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+                    <i class="fa-solid fa-rocket text-white text-sm"></i>
+                </div>
+                <h1 class="text-xl font-extrabold text-white tracking-tight">Share<span class="text-blue-400">Point</span></h1>
+            </div>
+            
+            <button onclick="openSupportBot()" class="flex items-center gap-2 border border-blue-500/30 text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-500/10 transition active:scale-95 shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:bg-blue-500/20">
+                <i class="fa-solid fa-headset"></i> Support
             </button>
         </div>
 
         <div id="dashboardView" class="block px-4">
             
-            <div class="rounded-[28px] bg-gradient-to-br from-[#B8860B] via-[#7B5E28] to-[#3B2F2F] p-6 text-white shadow-xl relative overflow-hidden mb-6">
-                <div class="absolute -right-6 -top-6 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl"></div>
+            <div class="animated-gradient-card rounded-[28px] p-6 relative overflow-hidden mb-5">
+                <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30 mix-blend-overlay"></div>
                 
-                <div class="flex justify-between items-start mb-8 relative z-10">
+                <div class="flex justify-between items-start mb-6 relative z-10">
                     <div>
-                        <p class="text-[#E5C158] text-[10px] font-bold tracking-widest mb-1 uppercase">Total Balance</p>
-                        <h2 class="text-4xl font-bold mb-1" id="walletBalanceDisplay">₦0</h2>
-                        <p class="text-gray-300 text-xs font-medium">Available to withdraw</p>
+                        <p class="text-blue-200 text-xs font-bold tracking-wider uppercase mb-1">Total Balance</p>
+                        <h2 class="text-4xl font-extrabold text-white tracking-tight text-glow" id="walletBalanceDisplay">Loading...</h2>
+                        <p class="text-blue-200 text-sm font-medium mt-1 opacity-90">Available to withdraw</p>
                     </div>
                     
-                    <div class="flex items-center gap-2 bg-black/20 backdrop-blur-sm border border-white/10 rounded-full py-1 pr-4 pl-1">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center shadow-inner">
-                            <i class="fa-solid fa-user text-xs text-white"></i>
+                    <div class="text-right">
+                        <div class="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg ml-auto mb-1">
+                            <i class="fa-solid fa-user text-white"></i>
                         </div>
-                        <div>
-                            <p class="text-sm font-bold leading-none mb-0.5" id="userNameDisplay">User</p>
-                            <p class="text-[9px] text-gray-300 leading-none" id="userIdDisplay">ID: 000</p>
-                        </div>
+                        <p class="text-sm font-bold text-white leading-tight" id="userNameDisplay">User</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="flex justify-between items-center border-t border-white/10 pt-4 relative z-10">
-                    <button onclick="showDepositPage()" class="flex items-center gap-1.5 text-xs font-semibold text-[#E5C158] hover:text-white transition">
-                        <i class="fa-solid fa-circle-play opacity-80"></i> Deposit
+            <div class="glass-card p-5 mb-6">
+                <div class="grid grid-cols-4 gap-y-4 gap-x-2">
+                    <button onclick="showDepositPage()" class="flex flex-col items-center gap-2 transition hover:-translate-y-1">
+                        <div class="w-12 h-12 rounded-[16px] bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+                            <i class="fa-solid fa-wallet text-xl"></i>
+                        </div>
+                        <span class="text-[10px] text-blue-200 font-bold">Deposit</span>
                     </button>
-                    <button onclick="showWithdrawPage()" class="flex items-center gap-1.5 text-xs font-semibold text-[#E5C158] hover:text-white transition">
-                        <i class="fa-solid fa-square-check opacity-80"></i> Withdraw
+                    <button onclick="showWithdrawPage()" class="flex flex-col items-center gap-2 transition hover:-translate-y-1">
+                        <div class="w-12 h-12 rounded-[16px] bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                            <i class="fa-solid fa-money-bill-transfer text-xl"></i>
+                        </div>
+                        <span class="text-[10px] text-blue-200 font-bold">Withdraw</span>
                     </button>
-                    <button onclick="switchTab('referral')" class="flex items-center gap-1.5 text-xs font-semibold text-[#E5C158] hover:text-white transition">
-                        <i class="fa-solid fa-user-group opacity-80"></i> Invite
+                    <button onclick="openSupportBot()" class="flex flex-col items-center gap-2 transition hover:-translate-y-1">
+                        <div class="w-12 h-12 rounded-[16px] bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                            <i class="fa-solid fa-headset text-xl"></i>
+                        </div>
+                        <span class="text-[10px] text-blue-200 font-bold">Support</span>
+                    </button>
+                    <button onclick="switchTab('referral')" class="flex flex-col items-center gap-2 transition hover:-translate-y-1">
+                        <div class="w-12 h-12 rounded-[16px] bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30 flex items-center justify-center text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.2)]">
+                            <i class="fa-solid fa-user-plus text-xl"></i>
+                        </div>
+                        <span class="text-[10px] text-blue-200 font-bold">Invite</span>
                     </button>
                 </div>
             </div>
 
-            <h3 class="text-lg font-bold text-gray-900 px-1 mb-1">Your Earnings</h3>
-            <p class="text-sm text-gray-500 px-1 mb-4">Track your daily investment profits here.</p>
+            <div class="flex justify-between items-end px-1 mb-3">
+                <h3 class="text-lg font-bold text-white">Your Returns</h3>
+                <button onclick="switchTab('portfolio')" class="text-xs text-emerald-400 font-bold hover:text-emerald-300">View Portfolio <i class="fa-solid fa-arrow-right ml-1"></i></button>
+            </div>
             
-            <div class="card-light p-5 mb-4">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-[#35363D] flex items-center justify-center shadow-md">
-                            <i class="fa-solid fa-wallet text-white text-lg"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-gray-900">Total Earned</h4>
-                            <p class="text-xs text-gray-500">Ready to withdraw</p>
-                        </div>
-                    </div>
-                    <div class="btn-dark px-4 py-1.5 rounded-full text-sm font-bold shadow" id="withdrawableBalanceDisplay">
-                        ₦0
-                    </div>
+            <div class="glass-card p-5 mb-4 border-l-4 border-l-emerald-400 relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 opacity-10">
+                    <i class="fa-solid fa-chart-line text-8xl text-emerald-500"></i>
                 </div>
-                
-                <div class="w-full bg-gray-100 rounded-full h-1.5 mb-2">
-                    <div class="bg-[#D4AF37] h-1.5 rounded-full" style="width: 100%"></div>
-                </div>
-                <div class="flex justify-between items-center mt-4">
-                    <button onclick="switchTab('shares')" class="text-xs font-bold text-[#D4AF37]"><i class="fa-solid fa-circle-info mr-1"></i> Earn More</button>
-                    <button onclick="showWithdrawPage()" class="btn-dark px-5 py-2 rounded-full text-xs font-bold transition">Cashout</button>
+                <div class="flex justify-between items-center relative z-10">
+                    <div>
+                        <p class="text-xs text-emerald-200 mb-1 font-bold uppercase tracking-wider">Total Yield</p>
+                        <div class="text-2xl font-extrabold text-white text-glow" id="withdrawableBalanceDisplay">...</div>
+                    </div>
+                    <button onclick="showWithdrawPage()" class="bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-full text-xs font-bold transition shadow-[0_0_15px_rgba(16,185,129,0.4)]">Cashout</button>
                 </div>
             </div>
         </div>
 
         <div id="sharesView" class="hidden px-4">
-            <h3 class="text-lg font-bold text-gray-900 px-1 mb-1">Available Shares</h3>
-            <p class="text-sm text-gray-500 px-1 mb-4">Buy shares to generate daily revenue.</p>
+            <h3 class="text-2xl font-extrabold text-white px-1 mb-1 text-glow">Marketplace</h3>
+            <p class="text-sm text-blue-200 px-1 mb-6">Invest in premium assets to earn daily yields.</p>
             
-            <div id="dynamicPlansList" class="space-y-4 pb-6">
-                <div class="text-center text-gray-400 py-10">Loading plans...</div>
+            <div id="dynamicPlansList" class="space-y-5 pb-6">
+                <div class="text-center text-blue-400 py-10 font-bold"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><br>Syncing market data...</div>
             </div>
         </div>
 
         <div id="portfolioView" class="hidden px-4">
-            <h3 class="text-lg font-bold text-gray-900 px-1 mb-1">Active Portfolio</h3>
-            <p class="text-sm text-gray-500 px-1 mb-4">Your running investments.</p>
+            <h3 class="text-2xl font-extrabold text-white px-1 mb-1 text-glow">Portfolio</h3>
+            <p class="text-sm text-blue-200 px-1 mb-6">Track your active, profit-generating assets.</p>
             <div id="investmentsList" class="space-y-4"></div>
         </div>
 
         <div id="referralView" class="hidden px-4">
-            <h3 class="text-lg font-bold text-gray-900 px-1 mb-1">Invite Friends</h3>
-            <p class="text-sm text-gray-500 px-1 mb-4">Earn huge commissions per invite.</p>
+            <h3 class="text-2xl font-extrabold text-white px-1 mb-1 text-glow">Affiliate Network</h3>
+            <p class="text-sm text-blue-200 px-1 mb-6">Invite your network to earn huge commissions.</p>
 
             <div class="grid grid-cols-2 gap-4 mb-6">
-                <div class="card-light p-4 text-center">
-                    <p class="text-[10px] text-[#D4AF37] uppercase tracking-widest font-bold mb-1">Total Invites</p>
-                    <h3 class="text-2xl font-extrabold text-gray-900" id="referralCountDisplay">0</h3>
+                <div class="glass-card p-5 text-center shadow-[0_0_20px_rgba(59,130,246,0.15)]">
+                    <p class="text-[10px] text-blue-300 uppercase tracking-widest font-bold mb-2">Total Network</p>
+                    <h3 class="text-3xl font-extrabold text-white text-glow" id="referralCountDisplay">0</h3>
                 </div>
-                <div class="card-light p-4 text-center">
-                    <p class="text-[10px] text-[#D4AF37] uppercase tracking-widest font-bold mb-1">Commission</p>
-                    <h3 class="text-2xl font-extrabold text-gray-900">5% + 10%</h3>
+                <div class="glass-card p-5 text-center shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+                    <p class="text-[10px] text-emerald-300 uppercase tracking-widest font-bold mb-2">Reward Rate</p>
+                    <h3 class="text-xl font-extrabold text-emerald-400 mt-2">5% + 10%</h3>
                 </div>
             </div>
             
-            <div class="card-light p-5">
-                <h4 class="text-gray-900 font-bold mb-3 text-sm">Your Invite Link</h4>
-                <div class="input-box rounded-2xl p-4 flex justify-between items-center mb-4">
-                    <p id="refLinkText" class="text-gray-600 text-xs overflow-hidden text-ellipsis whitespace-nowrap mr-2"></p>
-                    <button onclick="copyRefLink()" class="text-[#D4AF37] hover:text-[#B8860B]"><i class="fa-regular fa-copy text-lg"></i></button>
+            <div class="glass-card p-6 border border-blue-500/20 relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-5"><i class="fa-solid fa-users text-8xl text-blue-500"></i></div>
+                <h4 class="text-white font-bold mb-4 relative z-10">Your Unique Link</h4>
+                <div class="input-box rounded-2xl p-4 flex justify-between items-center mb-5 relative z-10">
+                    <p id="refLinkText" class="text-blue-300 text-xs overflow-hidden text-ellipsis whitespace-nowrap mr-2 font-medium"></p>
+                    <button onclick="copyRefLink()" class="text-white hover:text-blue-400 transition"><i class="fa-regular fa-copy text-xl drop-shadow-md"></i></button>
                 </div>
-                <button onclick="shareLink()" class="w-full btn-dark font-bold py-3.5 rounded-full transition shadow-lg">Share Link Now</button>
+                <button onclick="shareLink()" class="w-full btn-glow font-extrabold py-4 rounded-full text-lg relative z-10">Share Now</button>
             </div>
         </div>
 
         <div id="adminView" class="hidden px-4 pb-20">
-            <h3 class="text-lg font-bold text-red-500 px-1 mb-4"><i class="fa-solid fa-shield-halved mr-2"></i>Admin Center</h3>
+            <h3 class="text-2xl font-extrabold text-rose-500 px-1 mb-6 text-shadow"><i class="fa-solid fa-shield-halved mr-2"></i>Admin Center</h3>
             
             <div class="flex space-x-2 mb-6 overflow-x-auto pb-2">
-                <button onclick="switchAdminSubTab('withdrawals')" class="px-5 py-2 btn-dark rounded-full text-xs font-bold whitespace-nowrap shadow">Withdrawals</button>
-                <button onclick="switchAdminSubTab('plans')" class="px-5 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-xs font-bold whitespace-nowrap">Add Plan</button>
-                <button onclick="switchAdminSubTab('users')" class="px-5 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-xs font-bold whitespace-nowrap">Users</button>
+                <button onclick="switchAdminSubTab('withdrawals')" class="px-5 py-2.5 bg-rose-600 text-white rounded-full text-xs font-bold whitespace-nowrap shadow-[0_0_15px_rgba(225,29,72,0.4)]">Withdrawals</button>
+                <button onclick="switchAdminSubTab('plans')" class="px-5 py-2.5 glass-card text-white rounded-full text-xs font-bold whitespace-nowrap hover:bg-white/10 transition">Add Plan</button>
+                <button onclick="switchAdminSubTab('users')" class="px-5 py-2.5 glass-card text-white rounded-full text-xs font-bold whitespace-nowrap hover:bg-white/10 transition">Users</button>
             </div>
 
-            <div id="admin-withdrawals" class="space-y-3">
-                <div id="adminWithdrawalList" class="space-y-3"></div>
+            <div id="admin-withdrawals" class="space-y-4">
+                <div id="adminWithdrawalList" class="space-y-4"></div>
             </div>
 
             <div id="admin-plans" class="hidden">
-                <div class="card-light p-5">
-                    <h3 class="font-bold text-gray-900 mb-4">Publish New Plan</h3>
-                    <input type="text" id="newPlanName" placeholder="Plan Name" class="w-full input-box rounded-xl p-3.5 mb-3">
-                    <input type="text" id="newPlanIcon" placeholder="Icon (e.g. fa-star)" class="w-full input-box rounded-xl p-3.5 mb-3">
-                    <input type="number" id="newPlanCost" placeholder="Cost (₦)" class="w-full input-box rounded-xl p-3.5 mb-3">
-                    <input type="number" id="newPlanDaily" placeholder="Daily Return (₦)" class="w-full input-box rounded-xl p-3.5 mb-3">
-                    <input type="number" id="newPlanDuration" placeholder="Duration (Days)" class="w-full input-box rounded-xl p-3.5 mb-5">
-                    <button onclick="adminAddPlan()" class="w-full bg-[#D4AF37] text-white font-bold py-3.5 rounded-full shadow-lg">Publish to Store</button>
+                <div class="glass-card p-6 border-t-2 border-t-rose-500">
+                    <h3 class="font-bold text-white mb-5 text-lg">Publish New Plan</h3>
+                    <input type="text" id="newPlanName" placeholder="Plan Name" class="w-full input-box rounded-xl p-4 mb-4 text-sm font-medium">
+                    <input type="text" id="newPlanIcon" placeholder="Icon (e.g. fa-star)" class="w-full input-box rounded-xl p-4 mb-4 text-sm font-medium">
+                    <input type="number" id="newPlanCost" placeholder="Cost (₦)" class="w-full input-box rounded-xl p-4 mb-4 text-sm font-medium">
+                    <input type="number" id="newPlanDaily" placeholder="Daily Return (₦)" class="w-full input-box rounded-xl p-4 mb-4 text-sm font-medium">
+                    <input type="number" id="newPlanDuration" placeholder="Duration (Days)" class="w-full input-box rounded-xl p-4 mb-6 text-sm font-medium">
+                    <button onclick="adminAddPlan()" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-4 rounded-full shadow-[0_0_20px_rgba(225,29,72,0.5)] transition text-lg">Publish to Store</button>
                 </div>
             </div>
 
@@ -200,51 +248,52 @@
             </div>
         </div>
 
-        <div id="depositView" class="hidden px-4 pt-4">
-            <h3 class="text-xl font-bold text-gray-900 mb-6 text-center">Fund Wallet</h3>
+        <div id="depositView" class="hidden px-4 pt-2">
+            <div class="flex items-center gap-4 mb-8 px-1">
+                <button onclick="goBackToHome()" class="w-10 h-10 rounded-full glass-card flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition"><i class="fa-solid fa-arrow-left"></i></button>
+                <h3 class="text-2xl font-extrabold text-white text-glow">Fund Wallet</h3>
+            </div>
+            
             <div class="grid grid-cols-3 gap-3 mb-6">
-                <button onclick="setAmount(10000)" class="card-light py-3 font-bold text-gray-700 text-sm">10,000</button>
-                <button onclick="setAmount(50000)" class="card-light py-3 font-bold text-gray-700 text-sm">50,000</button>
-                <button onclick="setAmount(100000)" class="card-light py-3 font-bold text-gray-700 text-sm">100,000</button>
+                <button onclick="setAmount(10000)" class="glass-card py-4 font-bold text-blue-200 text-sm hover:border-blue-500 hover:text-white transition hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]">10,000</button>
+                <button onclick="setAmount(50000)" class="glass-card py-4 font-bold text-blue-200 text-sm hover:border-blue-500 hover:text-white transition hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]">50,000</button>
+                <button onclick="setAmount(100000)" class="glass-card py-4 font-bold text-blue-200 text-sm hover:border-blue-500 hover:text-white transition hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]">100,000</button>
             </div>
-            <div class="card-light p-5 border-t-4 border-t-[#D4AF37]">
-                <input type="number" id="depositAmount" placeholder="Enter Amount (₦)" class="w-full input-box text-xl font-bold rounded-2xl p-4 mb-5 text-center">
-                <button onclick="fundWallet()" id="generateLinkBtn" class="w-full btn-dark font-bold py-4 rounded-full text-lg shadow-lg transition">Proceed to Gateway</button>
-            </div>
-        </div>
-
-        <div id="withdrawView" class="hidden px-4 pt-4">
-            <h3 class="text-xl font-bold text-gray-900 mb-6 text-center">Withdraw Funds</h3>
-            <div class="card-light p-6 space-y-4 border-t-4 border-t-[#D4AF37]">
-                <input type="number" id="withdrawAmount" placeholder="Amount (Min ₦1000)" class="w-full input-box rounded-2xl p-4">
-                <input type="text" id="withdrawBank" placeholder="Bank Name" class="w-full input-box rounded-2xl p-4">
-                <input type="number" id="withdrawAccNo" placeholder="Account Number" class="w-full input-box rounded-2xl p-4">
-                <input type="text" id="withdrawAccName" placeholder="Account Name" class="w-full input-box rounded-2xl p-4">
-                <button onclick="processWithdrawal()" id="withdrawBtn" class="w-full btn-dark font-bold py-4 mt-2 rounded-full text-lg shadow-lg transition">Request Payout</button>
+            <div class="glass-card p-6 border-t-2 border-t-blue-500 relative overflow-hidden">
+                <div class="absolute right-0 top-0 opacity-10 p-4"><i class="fa-solid fa-wallet text-6xl text-blue-500"></i></div>
+                <p class="text-xs text-blue-300 mb-2 font-bold uppercase tracking-wider relative z-10">Enter Amount (₦)</p>
+                <div class="relative mb-6 z-10">
+                    <span class="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400 font-extrabold text-xl">₦</span>
+                    <input type="number" id="depositAmount" placeholder="0.00" class="w-full input-box text-2xl font-extrabold rounded-2xl p-5 pl-12 bg-black/30 border-blue-500/30 shadow-inner">
+                </div>
+                <button onclick="fundWallet()" id="generateLinkBtn" class="w-full btn-glow font-extrabold py-4 rounded-full text-lg relative z-10">Proceed to Gateway</button>
             </div>
         </div>
 
-        <nav id="bottomNav" class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-2 py-2 pb-safe z-50 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div id="withdrawView" class="hidden px-4 pt-2">
+            <div class="flex items-center gap-4 mb-8 px-1">
+                <button onclick="goBackToHome()" class="w-10 h-10 rounded-full glass-card flex items-center justify-center text-white shadow-lg hover:bg-white/10 transition"><i class="fa-solid fa-arrow-left"></i></button>
+                <h3 class="text-2xl font-extrabold text-white text-glow">Withdraw Funds</h3>
+            </div>
+            
+            <div class="glass-card p-6 space-y-5 border-t-2 border-t-emerald-500 relative overflow-hidden">
+                <div class="absolute right-0 top-0 opacity-10 p-4"><i class="fa-solid fa-money-bill-transfer text-6xl text-emerald-500"></i></div>
+                
+                <div class="relative z-10">
+                     <span class="absolute left-5 top-1/2 -translate-y-1/2 text-emerald-400 font-extrabold text-lg">₦</span>
+                     <input type="number" id="withdrawAmount" placeholder="Amount (Min ₦1000)" class="w-full input-box rounded-xl p-4 pl-12 font-bold bg-black/30 border-emerald-500/30">
+                </div>
+                <input type="text" id="withdrawBank" placeholder="Bank Name" class="w-full input-box rounded-xl p-4 font-medium relative z-10">
+                <input type="number" id="withdrawAccNo" placeholder="Account Number" class="w-full input-box rounded-xl p-4 font-medium relative z-10">
+                <input type="text" id="withdrawAccName" placeholder="Account Name" class="w-full input-box rounded-xl p-4 font-medium relative z-10">
+                <button onclick="processWithdrawal()" id="withdrawBtn" class="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold py-4 mt-2 rounded-full text-lg shadow-[0_0_20px_rgba(16,185,129,0.5)] transition relative z-10">Request Payout</button>
+            </div>
+        </div>
+
+        <nav id="bottomNav" class="fixed bottom-0 left-0 w-full bottom-nav-glass px-2 py-2 pb-safe z-50">
             <div class="flex justify-between items-center px-4" id="navFlexContainer">
-                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex flex-col items-center justify-center text-[#D4AF37] w-1/4 h-14 transition">
-                    <i class="fa-solid fa-play-circle text-xl mb-1 drop-shadow-md"></i><span class="text-[10px] font-bold">Home</span>
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex flex-col items-center justify-center text-blue-400 w-1/4 h-16 transition">
+                    <i class="fa-solid fa-house text-2xl mb-1 drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]"></i><span class="text-[10px] font-extrabold">Home</span>
                 </button>
-                <button onclick="switchTab('shares')" id="tab-shares" class="flex flex-col items-center justify-center text-gray-400 w-1/4 h-14 transition">
-                    <i class="fa-solid fa-clipboard-check text-xl mb-1"></i><span class="text-[10px] font-semibold">Shares</span>
-                </button>
-                <button onclick="switchTab('portfolio')" id="tab-portfolio" class="flex flex-col items-center justify-center text-gray-400 w-1/4 h-14 transition">
-                    <i class="fa-solid fa-chart-pie text-xl mb-1"></i><span class="text-[10px] font-semibold">Portfolio</span>
-                </button>
-                <button onclick="switchTab('referral')" id="tab-referral" class="flex flex-col items-center justify-center text-gray-400 w-1/4 h-14 transition">
-                    <i class="fa-solid fa-users text-xl mb-1"></i><span class="text-[10px] font-semibold">Invite</span>
-                </button>
-                <button onclick="switchTab('admin')" id="tab-admin" class="hidden flex-col items-center justify-center text-gray-300 w-1/5 h-14 transition">
-                    <i class="fa-solid fa-shield text-xl mb-1"></i><span class="text-[10px] font-semibold">Admin</span>
-                </button>
-            </div>
-        </nav>
-    </div>
-
-    <script src="script.js"></script>
-</body>
-                                                                                                    </html>
+                <button onclick="switchTab('shares')" id="tab-shares" class="flex flex-col items-center justify-center text-slate-500 w-1/4 h-16 transition hover:text-blue-300">
+                    <i class="fa-solid fa-layer-group text-xl mb-1"></i><span class=
