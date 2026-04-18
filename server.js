@@ -77,14 +77,12 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. AUTHENTICATION ROUTES (FIXED)
+// 3. AUTHENTICATION ROUTES
 // ==========================================
-
 app.post('/api/auth/check', async (req, res) => {
     const { tgId } = req.body;
     try {
         const user = await User.findOne({ tgId });
-        // FIX: If user doesn't exist OR has no password (legacy test accounts), force registration!
         if (!user || !user.password) return res.json({ status: "needs_registration" });
         if (user.isBanned) return res.json({ status: "banned" });
         res.json({ status: "needs_login" });
@@ -95,15 +93,11 @@ app.post('/api/auth/register', async (req, res) => {
     const { tgId, username, password, referredBy } = req.body;
     try {
         let user = await User.findOne({ tgId });
-        
-        // If they already have a password, they are fully registered
         if (user && user.password) return res.status(400).json({ error: "Already registered" });
 
-        // FIX: If they exist from testing but have no password, UPDATE them!
         if (user && !user.password) {
-            user.username = username;
-            user.password = password;
-            if (!user.referredBy && referredBy) user.referredBy = referredBy; // Catch referral if missed
+            user.username = username; user.password = password;
+            if (!user.referredBy && referredBy) user.referredBy = referredBy; 
             await user.save();
             return res.json({ success: true });
         }
@@ -121,33 +115,26 @@ app.post('/api/auth/login', async (req, res) => {
         if (!user) return res.status(400).json({ error: "User not found" });
         if (user.isBanned) return res.status(403).json({ error: "Account Banned." });
         if (user.password !== password) return res.status(401).json({ error: "Invalid Password" });
-        
         res.json({ success: true, user });
     } catch (err) { res.status(500).json({ error: "Server error" }); }
 });
 
-// NEW: FORGOT PASSWORD ROUTE
 app.post('/api/auth/forgot', async (req, res) => {
     const { tgId } = req.body;
     try {
         const user = await User.findOne({ tgId });
         if (!user) return res.status(404).json({ error: "Account not found." });
 
-        // Generate a random 6-digit pin
         const newPass = Math.floor(100000 + Math.random() * 900000).toString();
-        user.password = newPass;
-        await user.save();
+        user.password = newPass; await user.save();
 
         if (bot) {
             bot.sendMessage(tgId, `🔐 *Password Reset*\n\nYour new temporary password is: \`${newPass}\`\n\nPlease log in and keep this safe!`, { parse_mode: 'Markdown' });
             res.json({ success: true });
-        } else {
-            res.status(500).json({ error: "Bot error" });
-        }
+        } else { res.status(500).json({ error: "Bot error" }); }
     } catch (err) { res.status(500).json({ error: "Server error" }); }
 });
 
-// Load Dashboard
 app.get('/api/dashboard/:tgId', async (req, res) => {
     try {
         const user = await User.findOne({ tgId: req.params.tgId });
@@ -165,7 +152,7 @@ app.get('/api/dashboard/:tgId', async (req, res) => {
 });
 
 // ==========================================
-// 4. ADMIN ROUTES
+// 4. ADMIN & TRANSACTIONS
 // ==========================================
 const isAdmin = (req, res, next) => {
     if (req.headers['x-admin-id'] !== ADMIN_ID) return res.status(403).json({ error: "Unauthorized" });
@@ -184,8 +171,7 @@ app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
     const { name, cost, dailyReturn, duration, icon } = req.body;
     try {
         const plan = new Plan({ name, cost, dailyReturn, duration, icon });
-        await plan.save();
-        res.json({ success: true, plan });
+        await plan.save(); res.json({ success: true, plan });
     } catch (err) { res.status(500).json({ error: "Failed to add plan" }); }
 });
 
@@ -221,9 +207,6 @@ app.post('/api/admin/withdraw/resolve', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Failed to resolve withdrawal" }); }
 });
 
-// ==========================================
-// 5. TRANSACTIONS
-// ==========================================
 app.post('/api/buy-share', async (req, res) => {
     const { userId, planId } = req.body;
     try {
@@ -233,18 +216,14 @@ app.post('/api/buy-share', async (req, res) => {
         let user = await User.findOne({ tgId: userId });
         if (user.walletBalance < plan.cost) return res.status(400).json({ error: "Insufficient Wallet Balance." });
 
-        user.walletBalance -= plan.cost;
-        await user.save();
+        user.walletBalance -= plan.cost; await user.save();
 
         const newInvestment = new Investment({ userId, planId, shareName: plan.name, dailyReturn: plan.dailyReturn, daysLeft: plan.duration });
         await newInvestment.save();
 
         if (user.referredBy) {
             const referrer = await User.findOne({ tgId: user.referredBy });
-            if (referrer) {
-                referrer.withdrawableBalance += (plan.cost * 0.05);
-                await referrer.save();
-            }
+            if (referrer) { referrer.withdrawableBalance += (plan.cost * 0.05); await referrer.save(); }
         }
         res.json({ success: true });
     } catch (error) { res.status(500).json({ error: "Transaction failed" }); }
@@ -258,8 +237,7 @@ app.post('/api/withdraw', async (req, res) => {
         const user = await User.findOne({ tgId: userId });
         if (!user || user.withdrawableBalance < amount) return res.status(400).json({ error: "Insufficient Balance" });
 
-        user.withdrawableBalance -= amount;
-        await user.save();
+        user.withdrawableBalance -= amount; await user.save();
 
         const request = new Withdrawal({ userId, userName, amount, bankName, accountNumber: accNo, accountName: accName });
         await request.save();
@@ -277,11 +255,8 @@ app.post('/api/fund', async (req, res) => {
     if (!amount || amount < 100) return res.status(400).json({ error: "Minimum deposit is ₦100" });
     try {
         const response = await fetch(SQUAD_INITIATE_URL, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${SQUAD_SECRET_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                amount: amount * 100, email: `user${userId}@sharepoint.com`, currency: "NGN", initiate_type: "inline", transaction_ref: `SP-${userId}-${Date.now()}`
-            })
+            method: 'POST', headers: { 'Authorization': `Bearer ${SQUAD_SECRET_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: amount * 100, email: `user${userId}@sharepoint.com`, currency: "NGN", initiate_type: "inline", transaction_ref: `SP-${userId}-${Date.now()}` })
         });
         const data = await response.json();
         if (data.status === 200 && data.data) res.json({ success: true, checkoutUrl: data.data.checkout_url });
@@ -305,8 +280,7 @@ app.post('/webhook/squad', async (req, res) => {
                 const tgId = parts[1];
                 const user = await User.findOne({ tgId: tgId });
                 if (user) {
-                    user.walletBalance += amountInNaira;
-                    await user.save();
+                    user.walletBalance += amountInNaira; await user.save();
                     if (bot) bot.sendMessage(tgId, `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} added to your Wallet.`, { parse_mode: 'Markdown' });
                 }
             }
@@ -314,23 +288,14 @@ app.post('/webhook/squad', async (req, res) => {
     } catch (error) { console.error("Webhook Error:", error); }
 });
 
-// ==========================================
-// 6. TELEGRAM BOT LISTENERS (NEW!)
-// ==========================================
 if (bot) {
-    // INSTANT REFERRAL TRACKER: Catches the user the moment they hit "Start"
     bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
         const tgId = msg.chat.id.toString();
         const name = msg.from.first_name || "User";
-        const referredBy = match[1] ? match[1].trim() : null; // Gets the referrer ID from the link
-
+        const referredBy = match[1] ? match[1].trim() : null; 
         try {
             let user = await User.findOne({ tgId });
-            if (!user) {
-                // Save them immediately to lock in the referral!
-                user = new User({ tgId, name, referredBy });
-                await user.save();
-            }
+            if (!user) { user = new User({ tgId, name, referredBy }); await user.save(); }
             bot.sendMessage(tgId, `Welcome to SharePoint, ${name}!\n\nTap the "Open App" button below to register your password and start earning.`);
         } catch (err) { console.error("Bot Start Error:", err); }
     });
@@ -341,8 +306,7 @@ if (bot) {
         try {
             const withdrawal = await Withdrawal.findOne({ refId: refId, status: "Pending" });
             if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
-            withdrawal.status = "Paid";
-            await withdrawal.save();
+            withdrawal.status = "Paid"; await withdrawal.save();
             bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
             bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
         } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
@@ -355,10 +319,8 @@ cron.schedule('0 0 * * *', async () => {
         for (let inv of activeInvs) {
             const buyer = await User.findOne({ tgId: inv.userId });
             if (buyer) {
-                buyer.withdrawableBalance += inv.dailyReturn;
-                inv.daysLeft -= 1;
-                await buyer.save();
-                await inv.save();
+                buyer.withdrawableBalance += inv.dailyReturn; inv.daysLeft -= 1;
+                await buyer.save(); await inv.save();
                 if (buyer.referredBy) {
                     const referrer = await User.findOne({ tgId: buyer.referredBy });
                     if (referrer) { referrer.withdrawableBalance += (inv.dailyReturn * 0.10); await referrer.save(); }
