@@ -76,7 +76,7 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. SMART LOGIN & DASHBOARD
+// 3. CORE ROUTES
 // ==========================================
 app.post('/api/login', async (req, res) => {
     const { tgId, name, referredBy } = req.body;
@@ -102,9 +102,6 @@ app.post('/api/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Server error" }); }
 });
 
-// ==========================================
-// 4. ADMIN & TRANSACTIONS
-// ==========================================
 const isAdmin = (req, res, next) => {
     if (req.headers['x-admin-id'] !== ADMIN_ID) return res.status(403).json({ error: "Unauthorized" });
     next();
