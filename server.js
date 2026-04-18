@@ -36,7 +36,6 @@ mongoose.connect(MONGODB_URI)
 const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
     username: { type: String }, 
-    password: { type: String }, 
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
     referredBy: { type: String, default: null },
@@ -77,76 +76,28 @@ const WithdrawalSchema = new mongoose.Schema({
 const Withdrawal = mongoose.model('Withdrawal', WithdrawalSchema);
 
 // ==========================================
-// 3. AUTHENTICATION ROUTES
+// 3. SMART LOGIN & DASHBOARD
 // ==========================================
-app.post('/api/auth/check', async (req, res) => {
-    const { tgId } = req.body;
+app.post('/api/login', async (req, res) => {
+    const { tgId, name, referredBy } = req.body;
     try {
-        const user = await User.findOne({ tgId });
-        if (!user || !user.password) return res.json({ status: "needs_registration" });
-        if (user.isBanned) return res.json({ status: "banned" });
-        res.json({ status: "needs_login" });
-    } catch (err) { res.status(500).json({ error: "Server error" }); }
-});
-
-app.post('/api/auth/register', async (req, res) => {
-    const { tgId, username, password, referredBy } = req.body;
-    try {
-        let user = await User.findOne({ tgId });
-        if (user && user.password) return res.status(400).json({ error: "Already registered" });
-
-        if (user && !user.password) {
-            user.username = username; user.password = password;
-            if (!user.referredBy && referredBy) user.referredBy = referredBy; 
+        let user = await User.findOne({ tgId: tgId });
+        if (!user) {
+            user = new User({ tgId: tgId, username: name, referredBy: referredBy });
             await user.save();
-            return res.json({ success: true });
         }
-
-        user = new User({ tgId, username, password, referredBy });
-        await user.save();
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: "Server error" }); }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-    const { tgId, password } = req.body;
-    try {
-        const user = await User.findOne({ tgId });
-        if (!user) return res.status(400).json({ error: "User not found" });
-        if (user.isBanned) return res.status(403).json({ error: "Account Banned." });
-        if (user.password !== password) return res.status(401).json({ error: "Invalid Password" });
-        res.json({ success: true, user });
-    } catch (err) { res.status(500).json({ error: "Server error" }); }
-});
-
-app.post('/api/auth/forgot', async (req, res) => {
-    const { tgId } = req.body;
-    try {
-        const user = await User.findOne({ tgId });
-        if (!user) return res.status(404).json({ error: "Account not found." });
-
-        const newPass = Math.floor(100000 + Math.random() * 900000).toString();
-        user.password = newPass; await user.save();
-
-        if (bot) {
-            bot.sendMessage(tgId, `🔐 *Password Reset*\n\nYour new temporary password is: \`${newPass}\`\n\nPlease log in and keep this safe!`, { parse_mode: 'Markdown' });
-            res.json({ success: true });
-        } else { res.status(500).json({ error: "Bot error" }); }
-    } catch (err) { res.status(500).json({ error: "Server error" }); }
-});
-
-app.get('/api/dashboard/:tgId', async (req, res) => {
-    try {
-        const user = await User.findOne({ tgId: req.params.tgId });
-        if (!user) return res.status(404).json({ error: "User not found" });
+        
+        if (user.isBanned) return res.status(403).json({ error: "Banned" });
 
         const plans = await Plan.find({ isActive: true });
-        const investments = await Investment.find({ userId: req.params.tgId, daysLeft: { $gt: 0 } });
-        const referralCount = await User.countDocuments({ referredBy: req.params.tgId });
+        const investments = await Investment.find({ userId: tgId, daysLeft: { $gt: 0 } });
+        const referralCount = await User.countDocuments({ referredBy: tgId });
 
         res.json({
-            user: { walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, username: user.username },
-            plans, investments, referralCount
+            user: { walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, username: user.username || name },
+            plans: plans, 
+            investments: investments, 
+            referralCount: referralCount
         });
     } catch (err) { res.status(500).json({ error: "Server error" }); }
 });
@@ -163,22 +114,22 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
         const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
         const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
-        res.json({ users, pendingWithdrawals });
+        res.json({ users: users, pendingWithdrawals: pendingWithdrawals });
     } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
 });
 
 app.post('/api/admin/plan/add', isAdmin, async (req, res) => {
     const { name, cost, dailyReturn, duration, icon } = req.body;
     try {
-        const plan = new Plan({ name, cost, dailyReturn, duration, icon });
-        await plan.save(); res.json({ success: true, plan });
+        const plan = new Plan({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon });
+        await plan.save(); res.json({ success: true, plan: plan });
     } catch (err) { res.status(500).json({ error: "Failed to add plan" }); }
 });
 
 app.post('/api/admin/ban', isAdmin, async (req, res) => {
     const { tgId, banStatus } = req.body;
     try {
-        await User.findOneAndUpdate({ tgId }, { isBanned: banStatus });
+        await User.findOneAndUpdate({ tgId: tgId }, { isBanned: banStatus });
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: "Failed to update user" }); }
 });
@@ -186,7 +137,7 @@ app.post('/api/admin/ban', isAdmin, async (req, res) => {
 app.post('/api/admin/withdraw/resolve', isAdmin, async (req, res) => {
     const { refId, action } = req.body;
     try {
-        const request = await Withdrawal.findOne({ refId, status: "Pending" });
+        const request = await Withdrawal.findOne({ refId: refId, status: "Pending" });
         if (!request) return res.status(404).json({ error: "Request not found" });
 
         request.status = action === 'approve' ? "Paid" : "Rejected";
@@ -218,7 +169,7 @@ app.post('/api/buy-share', async (req, res) => {
 
         user.walletBalance -= plan.cost; await user.save();
 
-        const newInvestment = new Investment({ userId, planId, shareName: plan.name, dailyReturn: plan.dailyReturn, daysLeft: plan.duration });
+        const newInvestment = new Investment({ userId: userId, planId: planId, shareName: plan.name, dailyReturn: plan.dailyReturn, daysLeft: plan.duration });
         await newInvestment.save();
 
         if (user.referredBy) {
@@ -239,7 +190,7 @@ app.post('/api/withdraw', async (req, res) => {
 
         user.withdrawableBalance -= amount; await user.save();
 
-        const request = new Withdrawal({ userId, userName, amount, bankName, accountNumber: accNo, accountName: accName });
+        const request = new Withdrawal({ userId: userId, userName: userName, amount: amount, bankName: bankName, accountNumber: accNo, accountName: accName });
         await request.save();
 
         if (bot && ADMIN_ID) {
@@ -294,9 +245,9 @@ if (bot) {
         const name = msg.from.first_name || "User";
         const referredBy = match[1] ? match[1].trim() : null; 
         try {
-            let user = await User.findOne({ tgId });
-            if (!user) { user = new User({ tgId, name, referredBy }); await user.save(); }
-            bot.sendMessage(tgId, `Welcome to SharePoint, ${name}!\n\nTap the "Open App" button below to register your password and start earning.`);
+            let user = await User.findOne({ tgId: tgId });
+            if (!user) { user = new User({ tgId: tgId, username: name, referredBy: referredBy }); await user.save(); }
+            bot.sendMessage(tgId, `Welcome to SharePoint, ${name}!\n\nTap the "Open App" button below to start earning.`);
         } catch (err) { console.error("Bot Start Error:", err); }
     });
 
