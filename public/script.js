@@ -371,4 +371,4 @@ async function processWithdrawal() {
             loadDashboard(); tg.BackButton.click(); 
         } else { tg.showAlert(`❌ Error: ${result.error}`); }
     } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
-                                 }
+}
