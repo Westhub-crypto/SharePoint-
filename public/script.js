@@ -1,6 +1,6 @@
-// 1. GLOBAL ERROR CATCHER (Forces errors to show on your screen instead of failing silently)
+// GLOBAL ERROR CATCHER
 window.onerror = function(msg, url, lineNo) {
-    alert("System Error: " + msg + " (Line " + lineNo + ")");
+    alert("Error: " + msg + " (Line " + lineNo + ")");
     return false;
 };
 
@@ -8,7 +8,6 @@ const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand(); 
 
-// 2. SAFE USER ID EXTRACTION
 let user = null;
 if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
     user = window.Telegram.WebApp.initDataUnsafe.user;
@@ -27,12 +26,10 @@ const MY_REF_LINK = "https://t.me/" + BOT_USERNAME + "?start=" + USER_ID;
 const ADMIN_ID = "8067627422"; 
 
 // ==========================================
-// 3. INSTANT BOOT SEQUENCE
+// 1. INSTANT BOOT SEQUENCE
 // ==========================================
-// We do NOT use window.onload anymore. We run this instantly.
 function initApp() {
     try {
-        // SECURITY PURGE & ADMIN CHECK
         if (USER_ID !== ADMIN_ID) {
             var adminView = document.getElementById('adminView');
             var tabAdmin = document.getElementById('tab-admin');
@@ -50,14 +47,7 @@ function initApp() {
                 }
             }
         }
-
-        // Show Welcome Modal if first time
-        if (!sessionStorage.getItem('welcomeSeen')) {
-            var wModal = document.getElementById('welcomeModal');
-            if (wModal) wModal.classList.remove('hidden');
-        }
-
-        // Force dashboard load immediately
+        // Load data immediately
         loadDashboard();
     } catch(e) {
         alert("Boot Error: " + e.message);
@@ -67,14 +57,8 @@ function initApp() {
 // EXECUTE INSTANTLY
 initApp();
 
-function closeWelcomeModal() {
-    tg.HapticFeedback.impactOccurred('light');
-    document.getElementById('welcomeModal').classList.add('hidden');
-    sessionStorage.setItem('welcomeSeen', 'true');
-}
-
 // ==========================================
-// 4. SUPPORT DESK LOGIC
+// 2. SUPPORT DESK LOGIC
 // ==========================================
 function openSupportModal() {
     tg.HapticFeedback.impactOccurred('light');
@@ -117,10 +101,9 @@ async function sendSupportMessage() {
 }
 
 // ==========================================
-// 5. LOAD DASHBOARD & PROFILE DATA
+// 3. LOAD DASHBOARD DATA
 // ==========================================
 async function loadDashboard() {
-    // Visual indicator that we are trying to reach the server
     var nameDisplay = document.getElementById('userNameDisplay');
     if(nameDisplay) nameDisplay.innerText = "Waking Server... ⏳";
     
@@ -133,7 +116,7 @@ async function loadDashboard() {
         
         if (!res.ok) { 
             if(nameDisplay) nameDisplay.innerText = "Server Offline";
-            tg.showAlert("Server is offline. Please try again in 30 seconds."); 
+            tg.showAlert("Server is offline. Please wait 30 seconds and reopen."); 
             return; 
         }
 
@@ -143,29 +126,13 @@ async function loadDashboard() {
             return;
         }
 
-        // Populate Dashboard
         if(nameDisplay) nameDisplay.innerText = data.user.username || "Investor";
         
-        var wBal = document.getElementById('walletBalanceDisplay');
-        if(wBal) wBal.innerText = `₦${data.user.walletBalance.toLocaleString()}`;
-        
-        var earnBal = document.getElementById('withdrawableBalanceDisplay');
-        if(earnBal) earnBal.innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
-        
-        var refCount = document.getElementById('referralCountDisplay');
-        if(refCount) refCount.innerText = data.referralCount;
-        
-        var refLink = document.getElementById('refLinkText');
-        if(refLink) refLink.innerText = MY_REF_LINK;
+        document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
+        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
+        document.getElementById('referralCountDisplay').innerText = data.referralCount;
+        document.getElementById('refLinkText').innerText = MY_REF_LINK;
 
-        // Populate Profile Fields
-        if(data.user.fullName) document.getElementById('profFullName').value = data.user.fullName;
-        if(data.user.bankName) document.getElementById('profBankName').value = data.user.bankName;
-        if(data.user.accountNumber) document.getElementById('profAccNo').value = data.user.accountNumber;
-        if(data.user.accountName) document.getElementById('profAccName').value = data.user.accountName;
-        if(data.user.hasPin) document.getElementById('profPin').placeholder = "PIN Saved (Enter new to change)";
-
-        // Render Plans
         const plansList = document.getElementById('dynamicPlansList');
         if (plansList) {
             if (data.plans && data.plans.length > 0) {
@@ -201,7 +168,6 @@ async function loadDashboard() {
             }
         }
 
-        // Render Portfolio
         const invList = document.getElementById('investmentsList');
         if (invList) {
             if (data.investments && data.investments.length > 0) {
@@ -222,60 +188,33 @@ async function loadDashboard() {
             }
         }
 
-        // Load admin stats if applicable
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
     } catch (error) { 
         if(nameDisplay) nameDisplay.innerText = "Connection Failed";
-        tg.showAlert("Network error. Make sure your internet is stable and try again."); 
+        tg.showAlert("Network error. Make sure your internet is stable."); 
     }
 }
 
 // ==========================================
-// 6. PROFILE & TRANSACTIONS
+// 4. TRANSACTIONS
 // ==========================================
-async function saveProfile() {
-    var fName = document.getElementById('profFullName').value;
-    var bName = document.getElementById('profBankName').value;
-    var accNo = document.getElementById('profAccNo').value;
-    var accName = document.getElementById('profAccName').value;
-    var pin = document.getElementById('profPin').value;
-    var btn = document.getElementById('saveProfileBtn');
-
-    if (!fName || !bName || !accNo || !accName) return tg.showAlert("Please fill out all bank details.");
-
-    btn.innerText = "Saving..."; btn.disabled = true;
-
-    try {
-        const res = await fetch('/api/profile/update', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tgId: USER_ID, fullName: fName, bankName: bName, accountNumber: accNo, accountName: accName, withdrawalPin: pin })
-        });
-        const result = await res.json();
-        btn.innerText = "Save Profile"; btn.disabled = false;
-        
-        if (result.success) {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert("✅ Profile updated successfully!");
-            document.getElementById('profPin').value = ""; 
-        } else { tg.showAlert("❌ Error saving profile."); }
-    } catch (e) { btn.innerText = "Save Profile"; btn.disabled = false; tg.showAlert("Network error."); }
-}
-
 async function processWithdrawal() {
     const amount = Number(document.getElementById('withdrawAmount').value);
-    const pin = document.getElementById('withdrawPin').value;
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
     const btn = document.getElementById('withdrawBtn');
 
     if (!amount || amount < 1000) return tg.showAlert("Min ₦1,000");
-    if (!pin) return tg.showAlert("Please enter your Withdrawal PIN.");
+    if (!bank || !accNo || !accName) return tg.showAlert("Please fill out all bank details.");
 
     btn.innerText = "Processing..."; btn.disabled = true;
 
     try {
         const response = await fetch('/api/withdraw', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, pin: pin })
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
         });
         const result = await response.json();
         btn.innerText = "Request Payout"; btn.disabled = false;
@@ -284,7 +223,9 @@ async function processWithdrawal() {
             tg.HapticFeedback.notificationOccurred('success');
             tg.showAlert("✅ Withdrawal request sent!");
             document.getElementById('withdrawAmount').value = "";
-            document.getElementById('withdrawPin').value = "";
+            document.getElementById('withdrawBank').value = "";
+            document.getElementById('withdrawAccNo').value = "";
+            document.getElementById('withdrawAccName').value = "";
             loadDashboard(); tg.BackButton.click(); 
         } else { 
             tg.HapticFeedback.notificationOccurred('error');
@@ -302,26 +243,22 @@ function buyDynamicShare(planId, planName, cost) {
                 body: JSON.stringify({ userId: USER_ID, planId: planId })
             });
             const result = await res.json();
-            if (result.success) { 
-                tg.showAlert("✅ Success!"); 
-                loadDashboard(); 
-                switchTab('portfolio'); 
-            }
+            if (result.success) { tg.showAlert("✅ Success!"); loadDashboard(); switchTab('portfolio'); }
             else { tg.showAlert(`❌ ${result.error}`); }
         } catch (e) { tg.showAlert("Failed."); }
     });
 }
 
 // ==========================================
-// 7. NAVIGATION & UI HELPERS
+// 5. NAVIGATION & UI HELPERS
 // ==========================================
 function switchTab(tabId) {
     tg.HapticFeedback.selectionChanged();
     
-    if(tabId === 'profile' || tabId === 'admin') document.getElementById('mainHeader').classList.add('hidden');
+    if(tabId === 'admin') document.getElementById('mainHeader').classList.add('hidden');
     else document.getElementById('mainHeader').classList.remove('hidden');
 
-    var ids = ['dashboard', 'profile', 'shares', 'portfolio', 'referral', 'admin'];
+    var ids = ['dashboard', 'shares', 'portfolio', 'referral', 'admin'];
     for(var i=0; i<ids.length; i++) {
         var viewEl = document.getElementById(ids[i] + 'View');
         var tabEl = document.getElementById('tab-' + ids[i]);
@@ -345,7 +282,7 @@ function switchTab(tabId) {
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
     document.getElementById('mainHeader').classList.add('hidden');
-    var ids = ['dashboardView', 'profileView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
     for(var i=0; i<ids.length; i++) {
         var el = document.getElementById(ids[i]);
         if(el) el.classList.add('hidden');
@@ -364,7 +301,7 @@ function showDepositPage() {
 function showWithdrawPage() {
     tg.HapticFeedback.impactOccurred('light');
     document.getElementById('mainHeader').classList.add('hidden');
-    var ids = ['dashboardView', 'profileView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
     for(var i=0; i<ids.length; i++) {
         var el = document.getElementById(ids[i]);
         if(el) el.classList.add('hidden');
@@ -422,7 +359,7 @@ async function fundWallet() {
 }
 
 // ==========================================
-// 8. ADMIN DASHBOARD LOGIC
+// 6. ADMIN DASHBOARD LOGIC
 // ==========================================
 function switchAdminSubTab(tab) {
     var tabs = ['withdrawals', 'plans', 'users'];
@@ -441,4 +378,50 @@ async function loadAdminStats() {
 
         var wdList = document.getElementById('adminWithdrawalList');
         if (wdList) {
-            wdList.i
+            wdList.innerHTML = data.pendingWithdrawals.map(w => `
+                <div class="card p-4 rounded-xl border-l-4 border-l-blue-500">
+                    <p class="text-xs text-gray-400">ID: ${w.refId}</p>
+                    <p class="font-bold text-white">${w.userName} requested <span class="text-emerald-400">₦${w.amount}</span></p>
+                    <p class="text-sm text-gray-300">${w.bankName} - ${w.accountNumber}</p>
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold shadow-lg">Approve</button>
+                        <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-[#1A222C] border border-[#222834] text-white py-2 rounded-lg text-xs font-bold">Reject</button>
+                    </div>
+                </div>
+            `).join('') || `<p class="text-gray-500 text-xs">No pending requests.</p>`;
+        }
+
+        var usrList = document.getElementById('adminUsersList');
+        if (usrList) {
+            usrList.innerHTML = data.users.map(u => `
+                <div class="card p-3 rounded-xl flex justify-between items-center border border-[#222834]">
+                    <div>
+                        <p class="font-bold text-white text-sm">${u.username || 'Unknown'}</p>
+                        <p class="text-[10px] text-gray-400 uppercase">Bal: ₦${u.walletBalance} | Earn: ₦${u.withdrawableBalance}</p>
+                    </div>
+                    <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-3 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-[#1A222C] text-gray-300 border border-[#222834]' : 'bg-red-500/20 text-red-400'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
+                </div>
+            `).join('');
+        }
+    } catch (e) {}
+}
+
+async function resolveWithdrawal(refId, action) {
+    tg.showConfirm(`Are you sure you want to ${action} this request?`, async (conf) => {
+        if (!conf) return;
+        try {
+            await fetch('/api/admin/withdraw/resolve', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
+                body: JSON.stringify({ refId: refId, action: action })
+            });
+            tg.showAlert("Resolved!"); loadAdminStats(); loadDashboard();
+        } catch(e) { tg.showAlert("Error"); }
+    });
+}
+
+async function adminAddPlan() {
+    const name = document.getElementById('newPlanName').value;
+    const icon = document.getElementById('newPlanIcon').value || "fa-gem";
+    const cost = Number(document.getElementById('newPlanCost').value);
+    const dailyReturn = Number(document.getElementById('newPlanDaily').value);
+    const duration = N
