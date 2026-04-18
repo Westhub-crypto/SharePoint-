@@ -1,83 +1,123 @@
+// GLOBAL ERROR CATCHER: If anything breaks, it will print to the screen.
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+    var title = document.getElementById('authTitle');
+    var sub = document.getElementById('authSub');
+    if (title && sub) {
+        title.innerText = "App Error!";
+        sub.innerText = "Error: " + msg + " (Line " + lineNo + ")";
+    }
+    return false;
+};
+
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand(); 
 
-const user = tg.initDataUnsafe?.user;
+// Old-school safety checks to prevent crashes
+let user = null;
+if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    user = tg.initDataUnsafe.user;
+}
 const USER_ID = user ? user.id.toString() : "12345"; 
-const REFERRED_BY = tg.initDataUnsafe?.start_param || null;
+
+let REFERRED_BY = null;
+if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+    REFERRED_BY = tg.initDataUnsafe.start_param;
+}
+
 const BOT_USERNAME = "SharePoint_official_bot"; 
-const MY_REF_LINK = `https://t.me/${BOT_USERNAME}?start=${USER_ID}`;
+const MY_REF_LINK = "https://t.me/" + BOT_USERNAME + "?start=" + USER_ID;
 const ADMIN_ID = "8067627422"; 
 
 let currentAuthMode = "login"; 
 
-// ==========================================
-// 1. BOOT SEQUENCE & SECURITY PURGE
-// ==========================================
-// We wrap this in a function and call it IMMEDIATELY so it never gets stuck waiting on Telegram.
 async function startApp() {
-    // SECURITY PURGE: If the user is NOT the admin, physically delete the HTML from their app.
     if (USER_ID !== ADMIN_ID) {
-        const adminViewElement = document.getElementById('adminView');
-        const adminTabElement = document.getElementById('tab-admin');
-        if (adminViewElement) adminViewElement.remove(); 
-        if (adminTabElement) adminTabElement.remove();   
+        var adminView = document.getElementById('adminView');
+        var tabAdmin = document.getElementById('tab-admin');
+        if (adminView) adminView.remove(); 
+        if (tabAdmin) tabAdmin.remove();   
     } else {
-        // If it IS you, unhide the button and adjust nav spacing
-        const adminTab = document.getElementById('tab-admin');
+        var adminTab = document.getElementById('tab-admin');
         if (adminTab) {
             adminTab.classList.remove('hidden');
             adminTab.classList.add('flex');
-            document.querySelectorAll('#navFlexContainer button').forEach(btn => {
-                btn.classList.remove('w-1/4');
-                btn.classList.add('w-1/5');
-            });
+            var buttons = document.querySelectorAll('#navFlexContainer button');
+            for(var i = 0; i < buttons.length; i++) {
+                buttons[i].classList.remove('w-1/4');
+                buttons[i].classList.add('w-1/5');
+            }
         }
     }
 
-    document.getElementById('authTitle').innerText = "Waking Server...";
-    document.getElementById('authSub').innerText = "Please wait a moment...";
+    var authTitle = document.getElementById('authTitle');
+    var authSub = document.getElementById('authSub');
+    
+    if (authTitle) authTitle.innerText = "Waking Server...";
+    if (authSub) authSub.innerText = "Please wait a moment...";
+
+    // Failsafe timer: If server takes longer than 12 seconds
+    var bootTimer = setTimeout(function() {
+        if (authTitle) authTitle.innerText = "Server Asleep 😴";
+        if (authSub) authSub.innerText = "Tap below to wake it up.";
+        var authForm = document.getElementById('authForm');
+        if (authForm) {
+            authForm.innerHTML = '<button onclick="window.location.reload()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">Retry Connection</button>';
+            authForm.classList.remove('hidden');
+        }
+    }, 12000);
 
     try {
         const res = await fetch('/api/auth/check', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tgId: USER_ID })
         });
+
+        clearTimeout(bootTimer);
 
         if (!res.ok) throw new Error("Server not responding.");
 
         const data = await res.json();
 
         if (data.status === "banned") {
-            document.getElementById('authTitle').innerText = "Account Suspended";
-            document.getElementById('authSub').innerText = "Please contact support.";
+            if (authTitle) authTitle.innerText = "Account Suspended";
+            if (authSub) authSub.innerText = "Please contact support.";
             return;
         }
 
-        document.getElementById('authForm').classList.remove('hidden');
+        var authForm = document.getElementById('authForm');
+        var authUsername = document.getElementById('authUsername');
+        var forgotBtn = document.getElementById('forgotBtn');
+
+        if (authForm) authForm.classList.remove('hidden');
         
         if (data.status === "needs_registration") {
             currentAuthMode = "register";
-            document.getElementById('authTitle').innerText = "Create Account";
-            document.getElementById('authSub').innerText = "Set up your login details.";
-            if(document.getElementById('authUsername')) document.getElementById('authUsername').classList.remove('hidden');
-            if(document.getElementById('forgotBtn')) document.getElementById('forgotBtn').classList.add('hidden'); 
+            if (authTitle) authTitle.innerText = "Create Account";
+            if (authSub) authSub.innerText = "Set up your login details.";
+            if (authUsername) authUsername.classList.remove('hidden');
+            if (forgotBtn) forgotBtn.classList.add('hidden'); 
         } else {
             currentAuthMode = "login";
-            document.getElementById('authTitle').innerText = "Welcome Back";
-            document.getElementById('authSub').innerText = "Enter your password to unlock.";
-            if(document.getElementById('authUsername')) document.getElementById('authUsername').classList.add('hidden'); 
-            if(document.getElementById('forgotBtn')) document.getElementById('forgotBtn').classList.remove('hidden'); 
+            if (authTitle) authTitle.innerText = "Welcome Back";
+            if (authSub) authSub.innerText = "Enter password to unlock.";
+            if (authUsername) authUsername.classList.add('hidden'); 
+            if (forgotBtn) forgotBtn.classList.remove('hidden'); 
         }
     } catch (e) { 
-        document.getElementById('authTitle').innerText = "Connecting... ⏳";
-        document.getElementById('authSub').innerText = "Server is waking up. Tap retry in 15 seconds.";
-        document.getElementById('authForm').innerHTML = `<button onclick="window.location.reload()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl active:scale-95">Tap to Retry</button>`;
-        document.getElementById('authForm').classList.remove('hidden');
+        clearTimeout(bootTimer);
+        if (authTitle) authTitle.innerText = "Offline 🔌";
+        if (authSub) authSub.innerText = "Could not connect to server.";
+        var authForm = document.getElementById('authForm');
+        if (authForm) {
+            authForm.innerHTML = '<button onclick="window.location.reload()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">Retry</button>';
+            authForm.classList.remove('hidden');
+        }
     }
 }
 
-// EXECUTE THE BOOT SEQUENCE INSTANTLY
+// Start immediately
 startApp();
 
 async function submitAuth() {
@@ -88,7 +128,8 @@ async function submitAuth() {
 
     try {
         let endpoint = currentAuthMode === "register" ? '/api/auth/register' : '/api/auth/login';
-        let payload = { tgId: USER_ID, password };
+        let payload = { tgId: USER_ID, password: password };
+        
         if (currentAuthMode === "register") {
             const username = document.getElementById('authUsername').value;
             if (!username) { tg.MainButton.hide(); return tg.showAlert("Username required."); }
@@ -134,7 +175,7 @@ async function forgotPassword() {
 // ==========================================
 async function loadDashboard() {
     try {
-        const res = await fetch(`/api/dashboard/${USER_ID}`);
+        const res = await fetch('/api/dashboard/' + USER_ID);
         const data = await res.json();
 
         document.getElementById('userNameDisplay').innerText = data.user.username || "Investor";
@@ -143,7 +184,6 @@ async function loadDashboard() {
         document.getElementById('referralCountDisplay').innerText = data.referralCount;
         document.getElementById('refLinkText').innerText = MY_REF_LINK;
 
-        // Render Plans inside the NEW Shares Tab
         const plansList = document.getElementById('dynamicPlansList');
         if (data.plans && data.plans.length > 0) {
             plansList.innerHTML = data.plans.map(plan => {
@@ -194,7 +234,6 @@ async function loadDashboard() {
             `).join('');
         } else { invList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-500 text-sm">No active investments.</p></div>`; }
 
-        // Only load admin stats if user is the admin
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
     } catch (error) { console.error("Error fetching dashboard data", error); }
@@ -204,10 +243,13 @@ async function loadDashboard() {
 // 3. ADMIN PANEL LOGIC
 // ==========================================
 function switchAdminSubTab(tab) {
-    document.getElementById('admin-withdrawals')?.classList.add('hidden');
-    document.getElementById('admin-plans')?.classList.add('hidden');
-    document.getElementById('admin-users')?.classList.add('hidden');
-    document.getElementById(`admin-${tab}`)?.classList.remove('hidden');
+    var tabs = ['withdrawals', 'plans', 'users'];
+    for(var i=0; i<tabs.length; i++) {
+        var el = document.getElementById('admin-' + tabs[i]);
+        if (el) el.classList.add('hidden');
+    }
+    var activeTab = document.getElementById('admin-' + tab);
+    if(activeTab) activeTab.classList.remove('hidden');
 }
 
 async function loadAdminStats() {
@@ -246,7 +288,7 @@ async function resolveWithdrawal(refId, action) {
         tg.MainButton.text = "Processing..."; tg.MainButton.show();
         await fetch('/api/admin/withdraw/resolve', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-            body: JSON.stringify({ refId, action })
+            body: JSON.stringify({ refId: refId, action: action })
         });
         tg.MainButton.hide(); tg.showAlert("Resolved!"); loadAdminStats(); loadDashboard();
     });
@@ -264,7 +306,7 @@ async function adminAddPlan() {
     tg.MainButton.text = "Adding..."; tg.MainButton.show();
     await fetch('/api/admin/plan/add', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-        body: JSON.stringify({ name, cost, dailyReturn, duration, icon })
+        body: JSON.stringify({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon })
     });
     tg.MainButton.hide(); tg.showAlert("Plan Published!"); loadDashboard();
 }
@@ -274,7 +316,7 @@ async function toggleBan(tgId, banStatus) {
         if(!conf) return;
         await fetch('/api/admin/ban', {
             method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-id': ADMIN_ID },
-            body: JSON.stringify({ tgId, banStatus })
+            body: JSON.stringify({ tgId: tgId, banStatus: banStatus })
         });
         tg.showAlert("Updated!"); loadAdminStats();
     });
@@ -290,7 +332,7 @@ function buyDynamicShare(planId, planName, cost) {
         try {
             const res = await fetch('/api/buy-share', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: USER_ID, planId })
+                body: JSON.stringify({ userId: USER_ID, planId: planId })
             });
             const result = await res.json();
             tg.MainButton.hide();
@@ -308,37 +350,35 @@ function buyDynamicShare(planId, planName, cost) {
 function switchTab(tabId) {
     tg.HapticFeedback.selectionChanged();
     
-    // Hide everything first
-    ['dashboard', 'shares', 'portfolio', 'referral', 'admin'].forEach(id => {
-        const viewEl = document.getElementById(id + 'View');
-        const tabEl = document.getElementById('tab-' + id);
+    var ids = ['dashboard', 'shares', 'portfolio', 'referral', 'admin'];
+    for(var i=0; i<ids.length; i++) {
+        var viewEl = document.getElementById(ids[i] + 'View');
+        var tabEl = document.getElementById('tab-' + ids[i]);
         if(viewEl) viewEl.classList.add('hidden');
         
-        // Reset inactive tab styles
         if(tabEl) {
-            if (id === 'admin') tabEl.className = "flex flex-col items-center text-red-500 w-1/5 opacity-50 transition";
-            else tabEl.className = `flex flex-col items-center text-gray-500 ${USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4'} transition`;
+            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-500 w-1/5 opacity-50 transition";
+            else tabEl.className = "flex flex-col items-center text-gray-500 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
         }
-    });
+    }
 
-    // Show selected view
-    const selectedView = document.getElementById(tabId + 'View');
+    var selectedView = document.getElementById(tabId + 'View');
     if(selectedView) selectedView.classList.remove('hidden');
 
-    // Highlight selected tab
-    const selectedTab = document.getElementById('tab-' + tabId);
+    var selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
         if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-500 w-1/5 opacity-100 transition";
-        else selectedTab.className = `flex flex-col items-center text-blue-500 ${USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4'} transition drop-shadow-[0_0_8px_rgba(37,99,235,0.5)]`;
+        else selectedTab.className = "flex flex-col items-center text-blue-500 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition drop-shadow-[0_0_8px_rgba(37,99,235,0.5)]";
     }
 }
 
-// SUB-PAGES
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
-    ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'].forEach(id => {
-        document.getElementById(id)?.classList.add('hidden');
-    });
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    for(var i=0; i<ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if(el) el.classList.add('hidden');
+    }
     document.getElementById('depositView').classList.remove('hidden');
     tg.BackButton.show();
     tg.BackButton.onClick(() => {
@@ -351,9 +391,11 @@ function showDepositPage() {
 
 function showWithdrawPage() {
     tg.HapticFeedback.impactOccurred('light');
-    ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'].forEach(id => {
-        document.getElementById(id)?.classList.add('hidden');
-    });
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    for(var i=0; i<ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if(el) el.classList.add('hidden');
+    }
     document.getElementById('withdrawView').classList.remove('hidden');
     tg.BackButton.show();
     tg.BackButton.onClick(() => {
@@ -376,36 +418,13 @@ function copyRefLink() {
     tg.showAlert("✅ Link copied!");
 }
 function shareLink() {
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(MY_REF_LINK)}&text=Join me on SharePoint!`;
+    const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(MY_REF_LINK) + "&text=Join me on SharePoint!";
     tg.openTelegramLink(shareUrl);
 }
 
-// SQUADCO DEPOSIT
 async function fundWallet() {
     const amount = Number(document.getElementById('depositAmount').value);
     const btn = document.getElementById('generateLinkBtn');
     if (!amount || amount < 100) { tg.showAlert("Min ₦100."); return; }
     
-    tg.HapticFeedback.impactOccurred('medium');
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Generating..."; btn.disabled = true; 
-
-    try {
-        const response = await fetch('/api/fund', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, amount: amount })
-        });
-        const result = await response.json();
-        btn.innerText = originalText; btn.disabled = false;
-
-        if (result.success) tg.openLink(result.checkoutUrl);
-        else tg.showAlert(`❌ Error: ${result.error}`);
-    } catch (error) {
-        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
-    }
-}
-
-// WITHDRAWAL
-async function processWithdrawal() {
-    const amount = Number(document.getElementById('withdrawAmount').value);
-    const bank = document.getElement
+    tg.HapticFeedback.imp
