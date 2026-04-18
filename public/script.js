@@ -40,6 +40,11 @@ window.onload = function() {
             }
         }
     }
+    
+    // Set Profile Data instantly
+    document.getElementById('userNameDisplay').innerText = USER_NAME;
+    document.getElementById('userIdDisplay').innerText = `ID: ${USER_ID}`;
+    
     loadDashboard();
 };
 
@@ -67,61 +72,76 @@ async function loadDashboard() {
             return;
         }
 
-        document.getElementById('userNameDisplay').innerText = data.user.username || "Investor";
         document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
         document.getElementById('withdrawableBalanceDisplay').innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
         document.getElementById('referralCountDisplay').innerText = data.referralCount;
         document.getElementById('refLinkText').innerText = MY_REF_LINK;
 
+        // Render Shares with the new PayPlus inspired UI
         const plansList = document.getElementById('dynamicPlansList');
         if (data.plans && data.plans.length > 0) {
             plansList.innerHTML = data.plans.map(plan => {
                 const totalEarn = plan.dailyReturn * plan.duration;
-                const weeklyEarn = plan.dailyReturn * 7;
-                const monthlyEarn = plan.dailyReturn * 30; 
 
                 return `
-                <div class="card rounded-3xl p-5 mb-4 shadow-sm border border-purple-100">
+                <div class="card-light p-5">
                     <div class="flex justify-between items-center mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center border border-purple-200">
-                                <i class="fa-solid ${plan.icon} text-purple-600 text-xl"></i>
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-full bg-[#35363D] flex items-center justify-center shadow-md relative">
+                                <i class="fa-solid ${plan.icon} text-white text-xl"></i>
+                                <div class="absolute -bottom-1 -right-1 bg-[#D4AF37] w-4 h-4 rounded-full border-2 border-white"></div>
                             </div>
                             <div>
-                                <h4 class="text-lg font-bold text-gray-800">${plan.name}</h4>
-                                <p class="text-xs text-[#D4AF37] font-bold">Cost: ₦${plan.cost.toLocaleString()}</p>
+                                <h4 class="font-bold text-gray-900 text-base">${plan.name}</h4>
+                                <p class="text-xs text-gray-500">Earn daily instantly</p>
                             </div>
                         </div>
-                        <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-xl text-sm font-bold transition active:scale-95 shadow">Buy</button>
+                        <div class="bg-gray-100 px-4 py-1.5 rounded-full text-sm font-bold text-gray-800">
+                            +₦${plan.dailyReturn.toLocaleString()}
+                        </div>
                     </div>
                     
-                    <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-2 border border-gray-100">
-                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>Daily Return:</span> <span class="font-bold text-green-600">₦${plan.dailyReturn.toLocaleString()}</span></div>
-                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>Weekly Return:</span> <span class="font-bold text-gray-800">₦${weeklyEarn.toLocaleString()}</span></div>
-                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>Monthly Return:</span> <span class="font-bold text-gray-800">₦${monthlyEarn.toLocaleString()}</span></div>
-                        <div class="flex justify-between pt-1"><span>Total Profit (${plan.duration} Days):</span> <span class="font-bold text-purple-700">₦${totalEarn.toLocaleString()}</span></div>
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 mb-4">
+                        <div class="bg-[#D4AF37] h-1.5 rounded-full" style="width: 100%"></div>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <div class="text-center">
+                            <p class="text-[10px] text-[#D4AF37] uppercase tracking-widest font-bold">Cost</p>
+                            <p class="text-sm font-bold text-gray-900">₦${plan.cost.toLocaleString()}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-[#D4AF37] uppercase tracking-widest font-bold">Duration</p>
+                            <p class="text-sm font-bold text-gray-900">${plan.duration} Days</p>
+                        </div>
+                        <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="btn-dark px-6 py-2 rounded-full text-xs font-bold transition shadow-lg">Buy Now</button>
                     </div>
                 </div>`
             }).join('');
         } else {
-            plansList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-400 text-sm">No plans available right now.</p></div>`;
+            plansList.innerHTML = `<div class="card-light p-6 text-center"><p class="text-gray-400 text-sm">No plans available right now.</p></div>`;
         }
 
         const invList = document.getElementById('investmentsList');
         if (data.investments && data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => `
-                <div class="card rounded-2xl p-5 flex justify-between items-center shadow border-l-4 border-l-purple-500">
-                    <div>
-                        <h4 class="font-bold text-gray-800 text-sm">${inv.shareName}</h4>
-                        <p class="text-xs text-green-500 font-medium">+₦${inv.dailyReturn} Daily</p>
+                <div class="card-light p-5 flex justify-between items-center border-l-4 border-l-[#D4AF37]">
+                    <div class="flex items-center gap-3">
+                         <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-[#D4AF37]">
+                             <i class="fa-solid fa-chart-line"></i>
+                         </div>
+                         <div>
+                            <h4 class="font-bold text-gray-900 text-sm">${inv.shareName}</h4>
+                            <p class="text-xs text-green-600 font-medium">+₦${inv.dailyReturn} Daily</p>
+                         </div>
                     </div>
                     <div class="text-right">
-                        <p class="text-2xl font-bold text-[#D4AF37]">${inv.daysLeft}</p>
-                        <p class="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Days Left</p>
+                        <p class="text-2xl font-extrabold text-gray-900">${inv.daysLeft}</p>
+                        <p class="text-[9px] text-[#D4AF37] uppercase tracking-widest font-bold">Days Left</p>
                     </div>
                 </div>
             `).join('');
-        } else { invList.innerHTML = `<div class="card p-6 text-center rounded-2xl"><p class="text-gray-400 text-sm">No active investments.</p></div>`; }
+        } else { invList.innerHTML = `<div class="card-light p-6 text-center"><p class="text-gray-400 text-sm">No active investments.</p></div>`; }
 
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
@@ -147,24 +167,24 @@ async function loadAdminStats() {
         const data = await res.json();
 
         document.getElementById('adminWithdrawalList').innerHTML = data.pendingWithdrawals.map(w => `
-            <div class="card p-4 rounded-xl border-l-4 border-l-[#D4AF37] shadow-sm">
+            <div class="card-light p-4 border-l-4 border-l-[#D4AF37]">
                 <p class="text-xs text-gray-400">ID: ${w.refId}</p>
-                <p class="font-bold text-gray-800">${w.userName} requested <span class="text-green-500">₦${w.amount}</span></p>
+                <p class="font-bold text-gray-800">${w.userName} requested <span class="text-green-600">₦${w.amount}</span></p>
                 <p class="text-sm text-gray-600">${w.bankName} - ${w.accountNumber}</p>
                 <div class="flex gap-2 mt-3">
-                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-green-500 text-white py-2 rounded-lg text-xs font-bold shadow-sm">Approve</button>
-                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-xs font-bold shadow-sm">Reject</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 btn-dark py-2 rounded-full text-xs font-bold shadow-sm">Approve</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-full text-xs font-bold shadow-sm">Reject</button>
                 </div>
             </div>
-        `).join('') || `<p class="text-gray-400 text-xs">No pending requests.</p>`;
+        `).join('') || `<p class="text-gray-400 text-xs text-center mt-4">No pending requests.</p>`;
 
         document.getElementById('adminUsersList').innerHTML = data.users.map(u => `
-            <div class="card p-3 rounded-xl flex justify-between items-center shadow-sm">
+            <div class="card-light p-4 flex justify-between items-center">
                 <div>
-                    <p class="font-bold text-gray-800 text-sm">${u.username || 'Unknown'}</p>
-                    <p class="text-[10px] text-gray-500 uppercase">Bal: ₦${u.walletBalance} | Earn: ₦${u.withdrawableBalance}</p>
+                    <p class="font-bold text-gray-900 text-sm">${u.username || 'Unknown'}</p>
+                    <p class="text-[10px] text-gray-500 uppercase mt-1">Bal: ₦${u.walletBalance} | Earn: ₦${u.withdrawableBalance}</p>
                 </div>
-                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-3 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-red-50 text-red-500'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
+                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-full text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-500' : 'bg-red-50 text-red-500 border border-red-100'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
             </div>
         `).join('');
 
@@ -255,8 +275,15 @@ function switchTab(tabId) {
         if(viewEl) viewEl.classList.add('hidden');
         
         if(tabEl) {
-            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-[#D4AF37] w-1/5 opacity-50 transition";
-            else tabEl.className = "flex flex-col items-center text-gray-400 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center justify-center text-gray-300 w-1/5 h-14 transition";
+            else tabEl.className = "flex flex-col items-center justify-center text-gray-400 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " h-14 transition";
+            
+            // Reset icons
+            var icon = tabEl.querySelector('i');
+            if(icon) icon.classList.remove('drop-shadow-md');
+            
+            var text = tabEl.querySelector('span');
+            if(text) { text.classList.remove('font-bold'); text.classList.add('font-semibold'); }
         }
     }
 
@@ -265,8 +292,12 @@ function switchTab(tabId) {
 
     var selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
-        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-[#D4AF37] w-1/5 opacity-100 transition drop-shadow-sm";
-        else selectedTab.className = "flex flex-col items-center text-purple-700 " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition drop-shadow-[0_0_8px_rgba(109,40,217,0.3)]";
+        selectedTab.className = "flex flex-col items-center justify-center text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " h-14 transition";
+        var iconActive = selectedTab.querySelector('i');
+        if(iconActive) iconActive.classList.add('drop-shadow-md');
+        
+        var textActive = selectedTab.querySelector('span');
+        if(textActive) { textActive.classList.remove('font-semibold'); textActive.classList.add('font-bold'); }
     }
 }
 
