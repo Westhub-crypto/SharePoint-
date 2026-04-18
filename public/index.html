@@ -13,45 +13,23 @@
         .card { background-color: #151A23; border: 1px solid #222834; }
         .input-box { background-color: #0B0E14; border: 1px solid #222834; color: white; }
         .input-box:focus { border-color: #2563EB; outline: none; }
-        .modal-overlay { background: rgba(11, 14, 20, 0.85); backdrop-filter: blur(8px); }
     </style>
 </head>
-<body class="text-white font-sans antialiased pb-24 min-h-screen relative">
-
-    <div id="supportModal" class="hidden fixed inset-0 z-[90] modal-overlay flex items-end justify-center">
-        <div class="card w-full rounded-t-3xl p-6 shadow-2xl border-t border-blue-500/30">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-white"><i class="fa-solid fa-headset text-blue-400 mr-2"></i>Customer Care</h2>
-                <button onclick="closeSupportModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            
-            <select id="supportTopic" class="w-full input-box rounded-xl p-4 mb-4 font-semibold appearance-none">
-                <option value="" disabled selected>Select your issue...</option>
-                <option value="Deposit Issue">Deposit Issue</option>
-                <option value="Withdrawal Issue">Withdrawal Issue</option>
-                <option value="Bug Report">App Bug / Glitch</option>
-                <option value="Other">Other Inquiry</option>
-            </select>
-            
-            <textarea id="supportMessage" placeholder="Describe your issue here..." rows="4" class="w-full input-box rounded-xl p-4 mb-4 resize-none"></textarea>
-            
-            <button onclick="sendSupportMessage()" id="supportBtn" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl active:scale-95 transition">Send to Admin</button>
-        </div>
-    </div>
+<body class="text-white font-sans antialiased pb-24 min-h-screen">
 
     <div id="mainApp" class="block">
         
-        <div id="mainHeader" class="flex items-center justify-between px-4 pt-6 pb-4">
-            <div>
-                <p class="text-gray-400 text-sm">Hello,</p>
-                <h1 class="text-2xl font-bold text-white" id="userNameDisplay">Waking Server... ⏳</h1>
+        <div id="dashboardView" class="block px-4 pt-6">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <p class="text-gray-400 text-sm">Hello,</p>
+                    <h1 class="text-2xl font-bold text-white" id="userNameDisplay">Loading...</h1>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/30">
+                    <i class="fa-solid fa-user text-blue-400 text-sm"></i>
+                </div>
             </div>
-            <button onclick="openSupportModal()" class="w-10 h-10 rounded-full card flex items-center justify-center border border-blue-500/30 shadow-[0_0_10px_rgba(37,99,235,0.2)]">
-                <i class="fa-solid fa-headset text-blue-400"></i>
-            </button>
-        </div>
 
-        <div id="dashboardView" class="block px-4">
             <div class="space-y-4 mb-6">
                 <div class="card rounded-2xl p-5 shadow-lg">
                     <p class="text-gray-400 text-xs uppercase tracking-widest mb-1 font-semibold">Wallet Balance</p>
@@ -116,6 +94,7 @@
             </div>
 
             <div id="admin-withdrawals" class="space-y-3">
+                <p class="text-gray-400 text-sm mb-2">Pending Payouts:</p>
                 <div id="adminWithdrawalList" class="space-y-3"></div>
             </div>
 
@@ -180,4 +159,4 @@
 
     <script src="script.js"></script>
 </body>
-                </html>
+    </html>
