@@ -142,7 +142,7 @@
             
             <div class="flex space-x-2 mb-6 overflow-x-auto pb-2">
                 <button onclick="switchAdminSubTab('withdrawals')" class="px-5 py-2.5 bg-red-50 text-red-600 rounded-full text-xs font-bold border border-red-200 whitespace-nowrap shadow-sm">Withdrawals</button>
-                <button onclick="switchAdminSubTab('plans')" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-full text-xs font-bold whitespace-nowrap shadow-sm">Manage Plans</button>
+                <button onclick="switchAdminSubTab('plans')" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-full text-xs font-bold whitespace-nowrap shadow-sm">Add Plan</button>
                 <button onclick="switchAdminSubTab('users')" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-full text-xs font-bold whitespace-nowrap shadow-sm">Users</button>
             </div>
 
@@ -153,19 +153,15 @@
 
             <div id="admin-plans" class="hidden">
                 <div class="card p-6 rounded-2xl mb-6 border-t-4 border-t-red-500">
-                    <h3 class="font-extrabold text-gray-900 mb-4" id="planFormTitle">Publish New Plan</h3>
+                    <h3 class="font-extrabold text-gray-900 mb-4">Publish New Plan</h3>
                     <input type="text" id="newPlanName" placeholder="Plan Name" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
                     <input type="text" id="newPlanIcon" placeholder="Icon (e.g. fa-star)" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
                     <input type="number" id="newPlanCost" placeholder="Cost (₦)" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
                     <input type="number" id="newPlanDaily" placeholder="Daily Return (₦)" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
                     <input type="number" id="newPlanDuration" placeholder="Duration (Days)" class="w-full input-box rounded-xl p-3.5 mb-5 font-semibold">
                     
-                    <button onclick="adminSubmitPlan()" id="planSubmitBtn" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-xl shadow-lg mb-2">Publish Plan</button>
-                    <button onclick="cancelEditPlan()" id="cancelEditBtn" class="hidden w-full bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl">Cancel Edit</button>
+                    <button onclick="adminAddPlan()" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-xl shadow-lg mb-2">Publish Plan</button>
                 </div>
-                
-                <p class="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Existing Plans</p>
-                <div id="adminExistingPlans" class="space-y-3"></div>
             </div>
 
             <div id="admin-users" class="hidden">
