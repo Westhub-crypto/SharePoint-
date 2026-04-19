@@ -351,7 +351,7 @@ function setAmount(amount) {
 }
 
 // ==========================================
-// 6. SOCIAL SHARE LOGIC
+// 6. REFERRAL LINK LOGIC
 // ==========================================
 function copyRefLink() {
     tg.HapticFeedback.impactOccurred('medium');
@@ -361,40 +361,8 @@ function copyRefLink() {
 }
 
 function shareLink() {
-    shareTo('telegram'); // Default to telegram for the big button on the Referrals page
-}
-
-function shareTo(platform) {
-    tg.HapticFeedback.impactOccurred('light');
-    
-    const text = "Join my premium network on SharePoint and start earning daily returns!";
-    const url = encodeURIComponent(MY_REF_LINK);
-    const encodedText = encodeURIComponent(text);
-    
-    let shareUrl = "";
-    
-    switch(platform) {
-        case 'whatsapp':
-            shareUrl = `https://api.whatsapp.com/send?text=${encodedText}%20${url}`;
-            break;
-        case 'facebook':
-            shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${encodedText}`;
-            break;
-        case 'telegram':
-            shareUrl = `https://t.me/share/url?url=${url}&text=${encodedText}`;
-            break;
-        case 'twitter':
-            shareUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${url}`;
-            break;
-    }
-    
-    if(shareUrl) {
-        if(platform === 'telegram') {
-            tg.openTelegramLink(shareUrl);
-        } else {
-            tg.openLink(shareUrl); // Opens external links safely via Telegram's browser
-        }
-    }
+    const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(MY_REF_LINK) + "&text=Join my premium network on SharePoint and start earning daily returns!";
+    tg.openTelegramLink(shareUrl);
 }
 
 // ==========================================
@@ -440,4 +408,15 @@ async function processWithdrawal() {
     try {
         const response = await fetch('/api/withdraw', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
+        });
+        const result = await response.json();
+        tg.MainButton.hide(); btn.disabled = false;
+
+        if (result.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Withdrawal request sent!");
+            loadDashboard(); tg.BackButton.click(); 
+        } else { tg.showAlert(`❌ Error: ${result.error}`); }
+    } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
+}
