@@ -1,18 +1,61 @@
-const tg = window.Telegram.WebApp;
-tg.ready();
-tg.expand(); 
 
+# ==========================================
+# FILE 2: script.js (with Telegram fallback fix + Profile system)
+# ==========================================
+script_js = '''// ==========================================
+// SAFE TELEGRAM WEBAPP INITIALIZATION
+// Works both inside Telegram and regular browsers
+// ==========================================
+const tg = (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) 
+    ? window.Telegram.WebApp 
+    : { 
+        ready: () => {}, 
+        expand: () => {},
+        showAlert: (msg) => alert(msg),
+        showConfirm: (msg, cb) => cb(confirm(msg)),
+        HapticFeedback: { 
+            impactOccurred: () => {}, 
+            selectionChanged: () => {}, 
+            notificationOccurred: () => {} 
+        },
+        MainButton: { 
+            text: "", 
+            show: () => {}, 
+            hide: () => {}, 
+            showProgress: () => {} 
+        },
+        BackButton: { 
+            show: () => {}, 
+            hide: () => {}, 
+            onClick: () => {} 
+        },
+        openTelegramLink: (url) => window.open(url, '_blank'),
+        openLink: (url) => window.open(url, '_blank')
+      };
+
+tg.ready();
+tg.expand();
+
+// Safe user detection
 let user = null;
-if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-    user = window.Telegram.WebApp.initDataUnsafe.user;
+try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+        user = window.Telegram.WebApp.initDataUnsafe.user;
+    }
+} catch (e) {
+    console.log("Telegram WebApp not available, using fallback user");
 }
 
 const USER_ID = user ? user.id.toString() : "12345"; 
 const USER_NAME = user ? user.first_name : "User";
 
 let REFERRED_BY = null;
-if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) {
-    REFERRED_BY = window.Telegram.WebApp.initDataUnsafe.start_param;
+try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) {
+        REFERRED_BY = window.Telegram.WebApp.initDataUnsafe.start_param;
+    }
+} catch (e) {
+    REFERRED_BY = null;
 }
 
 const BOT_USERNAME = "SharePoint_official_bot"; 
@@ -24,9 +67,10 @@ const SUPPORT_BOT_LINK = "https://t.me/SharePoint_support_system_bot";
 let userProfile = null;
 
 // ==========================================
-// 1. INSTANT BOOT SEQUENCE
+// INSTANT BOOT SEQUENCE
 // ==========================================
 window.onload = function() {
+    // Show Dashboard instantly
     switchTab('dashboard');
     document.getElementById('userNameDisplay').innerText = USER_NAME;
     document.getElementById('profileDisplayId').innerText = "ID: " + USER_ID;
@@ -54,7 +98,7 @@ window.onload = function() {
 };
 
 // ==========================================
-// 2. SUPPORT BOT REDIRECT
+// SUPPORT BOT REDIRECT
 // ==========================================
 function openSupportBot() {
     tg.HapticFeedback.impactOccurred('medium');
@@ -62,7 +106,7 @@ function openSupportBot() {
 }
 
 // ==========================================
-// 3. LOAD DASHBOARD & RENDER PLANS
+// LOAD DASHBOARD & RENDER PLANS
 // ==========================================
 async function loadDashboard() {
     tg.MainButton.text = "Syncing Data..."; tg.MainButton.show(); tg.MainButton.showProgress();
@@ -76,7 +120,10 @@ async function loadDashboard() {
         
         tg.MainButton.hide();
 
-        if (!res.ok) return tg.showAlert("Server is offline. Try again.");
+        if (!res.ok) {
+            console.error("Server error:", res.status);
+            return tg.showAlert("Server is offline. Try again.");
+        }
 
         const data = await res.json();
 
@@ -101,9 +148,9 @@ async function loadDashboard() {
             document.getElementById('profileAccNameInput').value = userProfile.accountName || "";
         }
 
-        document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
-        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
-        document.getElementById('referralCountDisplay').innerText = data.referralCount;
+        document.getElementById('walletBalanceDisplay').innerText = `₦${(data.user.walletBalance || 0).toLocaleString()}`;
+        document.getElementById('withdrawableBalanceDisplay').innerText = `₦${(data.user.withdrawableBalance || 0).toLocaleString()}`;
+        document.getElementById('referralCountDisplay').innerText = data.referralCount || 0;
         document.getElementById('refLinkText').innerText = MY_REF_LINK;
 
         const plansList = document.getElementById('dynamicPlansList');
@@ -116,7 +163,7 @@ async function loadDashboard() {
                     <div class="flex justify-between items-center mb-5">
                         <div class="flex items-center gap-4">
                             <div class="w-14 h-14 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center border border-[#D4AF37]/30 shadow-inner">
-                                <i class="fa-solid ${plan.icon} text-[#D4AF37] text-2xl drop-shadow-sm"></i>
+                                <i class="fa-solid ${plan.icon || 'fa-gem'} text-[#D4AF37] text-2xl drop-shadow-sm"></i>
                             </div>
                             <div>
                                 <h4 class="text-xl font-black text-gray-900">${plan.name}</h4>
@@ -156,18 +203,21 @@ async function loadDashboard() {
                     </div>
                 </div>
             `).join('');
-        } else { invList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-gray-300"><p class="text-gray-500 font-bold text-sm">No active investments.</p></div>`; }
+        } else { 
+            invList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-gray-300"><p class="text-gray-500 font-bold text-sm">No active investments.</p></div>`; 
+        }
 
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
     } catch (error) { 
         tg.MainButton.hide();
+        console.error("Dashboard load error:", error);
         tg.showAlert("Network error. Please try again."); 
     }
 }
 
 // ==========================================
-// 4. PROFILE SYSTEM (NEW)
+// PROFILE SYSTEM (NEW)
 // ==========================================
 async function saveProfile() {
     const name = document.getElementById('profileNameInput').value.trim();
@@ -218,17 +268,18 @@ async function saveProfile() {
             
             tg.showAlert("✅ Profile saved successfully!");
         } else {
-            tg.showAlert("❌ Failed to save profile.");
+            tg.showAlert("❌ Failed to save profile: " + (data.error || "Unknown error"));
         }
     } catch (e) {
         btn.innerHTML = originalText;
         btn.disabled = false;
+        console.error("Profile save error:", e);
         tg.showAlert("Network error. Please try again.");
     }
 }
 
 // ==========================================
-// 5. ADMIN PANEL 
+// ADMIN PANEL 
 // ==========================================
 function switchAdminSubTab(tab) {
     var tabs = ['withdrawals', 'plans', 'users'];
@@ -268,8 +319,8 @@ async function loadAdminStats() {
                     <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 border border-red-200'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
                 </div>
                 <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
-                    <p class="text-gray-600"><span class="font-semibold">Wallet:</span> ₦${u.walletBalance.toLocaleString()}</p>
-                    <p class="text-gray-600"><span class="font-semibold">Earnings:</span> ₦${u.withdrawableBalance.toLocaleString()}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Wallet:</span> ₦${(u.walletBalance || 0).toLocaleString()}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Earnings:</span> ₦${(u.withdrawableBalance || 0).toLocaleString()}</p>
                     ${u.profile && u.profile.bankName ? `
                         <div class="mt-2 pt-2 border-t border-gray-200">
                             <p class="text-[#D4AF37] font-bold mb-1"><i class="fa-solid fa-building-columns mr-1"></i> Bank Details</p>
@@ -281,7 +332,9 @@ async function loadAdminStats() {
             </div>
         `).join('');
 
-    } catch (e) {}
+    } catch (e) {
+        console.error("Admin stats error:", e);
+    }
 }
 
 async function adminAddPlan() {
@@ -335,7 +388,7 @@ async function toggleBan(tgId, banStatus) {
 }
 
 // ==========================================
-// 6. USER ACTIONS
+// USER ACTIONS
 // ==========================================
 function buyDynamicShare(planId, planName, cost) {
     tg.showConfirm(`Purchase ${planName} for ₦${cost.toLocaleString()}?`, async (confirmed) => {
@@ -355,7 +408,10 @@ function buyDynamicShare(planId, planName, cost) {
                 switchTab('portfolio'); 
             }
             else { tg.showAlert(`❌ ${result.error}`); }
-        } catch (e) { tg.MainButton.hide(); tg.showAlert("Transaction failed."); }
+        } catch (e) { 
+            tg.MainButton.hide(); 
+            tg.showAlert("Transaction failed."); 
+        }
     });
 }
 
@@ -421,4 +477,130 @@ function showDepositPage() {
 }
 
 function showWithdrawPage() {
-    tg.HapticFeedback.impactOccurred('lig
+    tg.HapticFeedback.impactOccurred('light');
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'profileView', 'adminView', 'bottomNav'];
+    for(var i=0; i<ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if(el) el.classList.add('hidden');
+    }
+    document.getElementById('withdrawView').classList.remove('hidden');
+    
+    // Auto-fill bank details if profile exists
+    if (userProfile && userProfile.bankName) {
+        document.getElementById('withdrawBank').value = userProfile.bankName;
+        document.getElementById('withdrawAccNo').value = userProfile.accountNumber;
+        document.getElementById('withdrawAccName').value = userProfile.accountName;
+        document.getElementById('withdrawProfileNotice').classList.remove('hidden');
+    } else {
+        document.getElementById('withdrawProfileNotice').classList.add('hidden');
+    }
+    
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        document.getElementById('withdrawView').classList.add('hidden');
+        document.getElementById('bottomNav').classList.remove('hidden');
+        switchTab('dashboard');
+        tg.BackButton.hide();
+    });
+    window.scrollTo(0,0);
+}
+
+function setAmount(amount) {
+    tg.HapticFeedback.selectionChanged();
+    document.getElementById('depositAmount').value = amount;
+}
+
+// ==========================================
+// REFERRAL LINK LOGIC
+// ==========================================
+function copyRefLink() {
+    tg.HapticFeedback.impactOccurred('medium');
+    const tempInput = document.createElement("input"); 
+    tempInput.value = MY_REF_LINK; 
+    document.body.appendChild(tempInput);
+    tempInput.select(); 
+    document.execCommand("copy"); 
+    document.body.removeChild(tempInput);
+    tg.showAlert("✅ Link copied!");
+}
+
+function shareLink() {
+    const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(MY_REF_LINK) + "&text=Join my premium network on SharePoint and start earning daily returns!";
+    tg.openTelegramLink(shareUrl);
+}
+
+// ==========================================
+// TRANSACTIONS
+// ==========================================
+async function fundWallet() {
+    const amount = Number(document.getElementById('depositAmount').value);
+    const btn = document.getElementById('generateLinkBtn');
+    if (!amount || amount < 100) { tg.showAlert("Min deposit is ₦100."); return; }
+    
+    tg.HapticFeedback.impactOccurred('medium');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Generating..."; 
+    btn.disabled = true; 
+
+    try {
+        const response = await fetch('/api/fund', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, amount: amount })
+        });
+        const result = await response.json();
+        btn.innerText = originalText; 
+        btn.disabled = false;
+
+        if (result.success) tg.openLink(result.checkoutUrl);
+        else tg.showAlert(`❌ Error: ${result.error}`);
+    } catch (error) {
+        btn.innerText = originalText; 
+        btn.disabled = false; 
+        tg.showAlert("Network error.");
+    }
+}
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+    const btn = document.getElementById('withdrawBtn');
+
+    if (!amount || amount < 1000) return tg.showAlert("Min withdrawal is ₦1,000.");
+    if (!bank || !accNo || !accName) return tg.showAlert("Fill all banking details.");
+    if (accNo.length !== 10) return tg.showAlert("Account number must be 10 digits.");
+
+    tg.MainButton.text = "Sending Request..."; 
+    tg.MainButton.show(); 
+    tg.MainButton.showProgress();
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
+        });
+        const result = await response.json();
+        tg.MainButton.hide(); 
+        btn.disabled = false;
+
+        if (result.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Withdrawal request sent!");
+            loadDashboard(); 
+            tg.BackButton.click(); 
+        } else { 
+            tg.showAlert(`❌ Error: ${result.error}`); 
+        }
+    } catch (e) { 
+        tg.MainButton.hide(); 
+        btn.disabled = false; 
+        tg.showAlert("Network error."); 
+    }
+}'''
+
+with open(os.path.join(output_dir, 'script.js'), 'w') as f:
+    f.write(script_js)
+
+print("✅ script.js written successfully")
