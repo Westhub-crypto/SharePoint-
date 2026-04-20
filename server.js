@@ -34,13 +34,25 @@ mongoose.connect(MONGODB_URI)
 // ==========================================
 // 2. DATABASE SCHEMAS
 // ==========================================
+
+// Profile Sub-Schema
+const ProfileSchema = new mongoose.Schema({
+    name: { type: String, default: "" },
+    bankName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
+    accountName: { type: String, default: "" },
+    updatedAt: { type: Date, default: Date.now }
+});
+
 const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
     username: { type: String }, 
+    registeredName: { type: String, default: "" },  // Custom name from profile
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
     referredBy: { type: String, default: null },
-    isBanned: { type: Boolean, default: false } 
+    isBanned: { type: Boolean, default: false },
+    profile: { type: ProfileSchema, default: () => ({}) }  // Embedded profile
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -84,7 +96,12 @@ app.post('/api/login', async (req, res) => {
     try {
         let user = await User.findOne({ tgId: tgId });
         if (!user) {
-            user = new User({ tgId: tgId, username: name, referredBy: referredBy });
+            user = new User({ 
+                tgId: tgId, 
+                username: name, 
+                referredBy: referredBy,
+                registeredName: name  // Default to Telegram name initially
+            });
             await user.save();
         }
         
@@ -95,7 +112,13 @@ app.post('/api/login', async (req, res) => {
         const referralCount = await User.countDocuments({ referredBy: tgId });
 
         res.json({
-            user: { walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, username: user.username || name },
+            user: { 
+                walletBalance: user.walletBalance, 
+                withdrawableBalance: user.withdrawableBalance, 
+                username: user.username || name,
+                registeredName: user.registeredName || user.username || name,
+                profile: user.profile 
+            },
             plans: plans, 
             investments: investments, 
             referralCount: referralCount
@@ -104,7 +127,48 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ==========================================
-// 4. ADMIN & TRANSACTIONS
+// 4. PROFILE ENDPOINTS (NEW)
+// ==========================================
+app.post('/api/profile', async (req, res) => {
+    const { tgId, name, bankName, accountNumber, accountName } = req.body;
+    
+    if (!tgId || !name) return res.status(400).json({ error: "User ID and name are required" });
+    
+    try {
+        const user = await User.findOne({ tgId: tgId });
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        // Update registered name and profile
+        user.registeredName = name;
+        user.profile = {
+            name: name,
+            bankName: bankName || "",
+            accountNumber: accountNumber || "",
+            accountName: accountName || "",
+            updatedAt: new Date()
+        };
+
+        await user.save();
+        res.json({ success: true, profile: user.profile });
+    } catch (err) { 
+        console.error("Profile save error:", err);
+        res.status(500).json({ error: "Failed to save profile" }); 
+    }
+});
+
+app.get('/api/profile/:tgId', async (req, res) => {
+    try {
+        const user = await User.findOne({ tgId: req.params.tgId }, 'registeredName profile');
+        if (!user) return res.status(404).json({ error: "User not found" });
+        res.json({ 
+            registeredName: user.registeredName, 
+            profile: user.profile 
+        });
+    } catch (err) { res.status(500).json({ error: "Server error" }); }
+});
+
+// ==========================================
+// 5. ADMIN & TRANSACTIONS
 // ==========================================
 const isAdmin = (req, res, next) => {
     if (req.headers['x-admin-id'] !== ADMIN_ID) return res.status(403).json({ error: "Unauthorized" });
@@ -113,7 +177,7 @@ const isAdmin = (req, res, next) => {
 
 app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
-        const users = await User.find({}, 'username walletBalance withdrawableBalance isBanned tgId');
+        const users = await User.find({}, 'username registeredName walletBalance withdrawableBalance isBanned tgId profile');
         const pendingWithdrawals = await Withdrawal.find({ status: "Pending" });
         res.json({ users: users, pendingWithdrawals: pendingWithdrawals });
     } catch (err) { res.status(500).json({ error: "Error fetching admin stats" }); }
@@ -191,7 +255,14 @@ app.post('/api/withdraw', async (req, res) => {
 
         user.withdrawableBalance -= amount; await user.save();
 
-        const request = new Withdrawal({ userId: userId, userName: userName, amount: amount, bankName: bankName, accountNumber: accNo, accountName: accName });
+        const request = new Withdrawal({ 
+            userId: userId, 
+            userName: userName, 
+            amount: amount, 
+            bankName: bankName, 
+            accountNumber: accNo, 
+            accountName: accName 
+        });
         await request.save();
 
         if (bot && ADMIN_ID) {
@@ -247,9 +318,17 @@ if (bot) {
         const referredBy = match[1] ? match[1].trim() : null; 
         try {
             let user = await User.findOne({ tgId: tgId });
-            if (!user) { user = new User({ tgId: tgId, username: name, referredBy: referredBy }); await user.save(); }
+            if (!user) { 
+                user = new User({ 
+                    tgId: tgId, 
+                    username: name, 
+                    referredBy: referredBy,
+                    registeredName: name 
+                }); 
+                await user.save(); 
+            }
             
-            const welcomeMsg = `🌟 *Welcome to SharePoint, ${name}!* 🌟\n\n` +
+            const welcomeMsg = `🌟 *Welcome to SharePoint, ${user.registeredName || name}!* 🌟\n\n` +
                                `Are you ready to unlock your financial freedom? SharePoint is an elite automated earning platform designed to generate passive wealth.\n\n` +
                                `💰 *Why Join SharePoint?*\n` +
                                `• Earn up to *₦150,000+ daily* directly to your wallet.\n` +
@@ -303,3 +382,4 @@ cron.schedule('0 0 * * *', async () => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+               
