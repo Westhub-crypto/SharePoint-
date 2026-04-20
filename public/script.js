@@ -20,13 +20,16 @@ const MY_REF_LINK = "https://t.me/" + BOT_USERNAME + "?start=" + USER_ID;
 const ADMIN_ID = "8067627422"; 
 const SUPPORT_BOT_LINK = "https://t.me/SharePoint_support_system_bot";
 
+// Global profile data cache
+let userProfile = null;
+
 // ==========================================
 // 1. INSTANT BOOT SEQUENCE
 // ==========================================
 window.onload = function() {
-    // Show Dashboard instantly to prevent getting stuck on blank page
     switchTab('dashboard');
     document.getElementById('userNameDisplay').innerText = USER_NAME;
+    document.getElementById('profileDisplayId').innerText = "ID: " + USER_ID;
 
     // Admin Tab Visibility
     if (USER_ID !== ADMIN_ID) {
@@ -41,8 +44,8 @@ window.onload = function() {
             adminTab.classList.add('flex');
             var buttons = document.querySelectorAll('#navFlexContainer button');
             for(var i = 0; i < buttons.length; i++) {
-                buttons[i].classList.remove('w-1/4');
-                buttons[i].classList.add('w-1/5');
+                buttons[i].classList.remove('w-1/5');
+                buttons[i].classList.add('w-1/6');
             }
         }
     }
@@ -82,7 +85,22 @@ async function loadDashboard() {
             return;
         }
 
-        document.getElementById('userNameDisplay').innerText = data.user.username || "Investor";
+        // Use registered name if available, fallback to Telegram name
+        const displayName = data.user.registeredName || data.user.username || "Investor";
+        document.getElementById('userNameDisplay').innerText = displayName;
+        document.getElementById('profileDisplayName').innerText = displayName;
+        
+        // Cache profile data
+        userProfile = data.user.profile || null;
+        
+        // Populate profile form if data exists
+        if (userProfile) {
+            document.getElementById('profileNameInput').value = userProfile.name || "";
+            document.getElementById('profileBankInput').value = userProfile.bankName || "";
+            document.getElementById('profileAccNoInput').value = userProfile.accountNumber || "";
+            document.getElementById('profileAccNameInput').value = userProfile.accountName || "";
+        }
+
         document.getElementById('walletBalanceDisplay').innerText = `₦${data.user.walletBalance.toLocaleString()}`;
         document.getElementById('withdrawableBalanceDisplay').innerText = `₦${data.user.withdrawableBalance.toLocaleString()}`;
         document.getElementById('referralCountDisplay').innerText = data.referralCount;
@@ -149,7 +167,68 @@ async function loadDashboard() {
 }
 
 // ==========================================
-// 4. ADMIN PANEL 
+// 4. PROFILE SYSTEM (NEW)
+// ==========================================
+async function saveProfile() {
+    const name = document.getElementById('profileNameInput').value.trim();
+    const bankName = document.getElementById('profileBankInput').value.trim();
+    const accountNumber = document.getElementById('profileAccNoInput').value.trim();
+    const accountName = document.getElementById('profileAccNameInput').value.trim();
+
+    if (!name) return tg.showAlert("Please enter your display name.");
+    if (bankName && (!accountNumber || !accountName)) return tg.showAlert("Please fill all bank details or leave all empty.");
+    if (accountNumber && accountNumber.length !== 10) return tg.showAlert("Account number must be 10 digits.");
+
+    const btn = document.getElementById('saveProfileBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Saving...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tgId: USER_ID,
+                name: name,
+                bankName: bankName,
+                accountNumber: accountNumber,
+                accountName: accountName
+            })
+        });
+
+        const data = await res.json();
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+
+        if (data.success) {
+            tg.HapticFeedback.notificationOccurred('success');
+            
+            // Update display
+            document.getElementById('profileDisplayName').innerText = name;
+            document.getElementById('userNameDisplay').innerText = name;
+            
+            // Show success badge
+            const badge = document.getElementById('profileSavedBadge');
+            badge.classList.remove('hidden');
+            setTimeout(() => badge.classList.add('hidden'), 4000);
+            
+            // Update cached profile
+            userProfile = { name, bankName, accountNumber, accountName };
+            
+            tg.showAlert("✅ Profile saved successfully!");
+        } else {
+            tg.showAlert("❌ Failed to save profile.");
+        }
+    } catch (e) {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        tg.showAlert("Network error. Please try again.");
+    }
+}
+
+// ==========================================
+// 5. ADMIN PANEL 
 // ==========================================
 function switchAdminSubTab(tab) {
     var tabs = ['withdrawals', 'plans', 'users'];
@@ -170,7 +249,8 @@ async function loadAdminStats() {
             <div class="card p-5 rounded-2xl border-l-4 border-l-red-500 shadow-sm">
                 <p class="text-xs text-gray-400 font-bold">ID: ${w.refId}</p>
                 <p class="font-extrabold text-gray-900 mt-1">${w.userName} requested <span class="text-emerald-500">₦${w.amount.toLocaleString()}</span></p>
-                <p class="text-sm text-gray-600 mb-3">${w.bankName} - ${w.accountNumber}</p>
+                <p class="text-sm text-gray-600 mb-1">${w.bankName} - ${w.accountNumber}</p>
+                <p class="text-xs text-gray-400 mb-3">Acc Name: ${w.accountName}</p>
                 <div class="flex gap-3">
                     <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-bold shadow-md">Approve</button>
                     <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-bold">Reject</button>
@@ -179,12 +259,25 @@ async function loadAdminStats() {
         `).join('') || `<p class="text-gray-400 text-sm font-medium">No pending requests.</p>`;
 
         document.getElementById('adminUsersList').innerHTML = data.users.map(u => `
-            <div class="card p-4 rounded-xl flex justify-between items-center mb-3">
-                <div>
-                    <p class="font-bold text-gray-900 text-sm">${u.username || 'Unknown'}</p>
-                    <p class="text-[10px] text-gray-500 font-bold uppercase mt-1">Bal: ₦${u.walletBalance.toLocaleString()} | Earn: ₦${u.withdrawableBalance.toLocaleString()}</p>
+            <div class="card p-4 rounded-xl mb-3">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <p class="font-bold text-gray-900 text-sm">${u.username || 'Unknown'}</p>
+                        <p class="text-[10px] text-gray-500 font-bold uppercase mt-0.5">ID: ${u.tgId}</p>
+                    </div>
+                    <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 border border-red-200'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
                 </div>
-                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 border border-red-200'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
+                <div class="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
+                    <p class="text-gray-600"><span class="font-semibold">Wallet:</span> ₦${u.walletBalance.toLocaleString()}</p>
+                    <p class="text-gray-600"><span class="font-semibold">Earnings:</span> ₦${u.withdrawableBalance.toLocaleString()}</p>
+                    ${u.profile && u.profile.bankName ? `
+                        <div class="mt-2 pt-2 border-t border-gray-200">
+                            <p class="text-[#D4AF37] font-bold mb-1"><i class="fa-solid fa-building-columns mr-1"></i> Bank Details</p>
+                            <p class="text-gray-500">${u.profile.bankName} | ${u.profile.accountNumber}</p>
+                            <p class="text-gray-500">${u.profile.accountName}</p>
+                        </div>
+                    ` : '<p class="text-gray-400 italic mt-1">No bank details registered</p>'}
+                </div>
             </div>
         `).join('');
 
@@ -242,7 +335,7 @@ async function toggleBan(tgId, banStatus) {
 }
 
 // ==========================================
-// 5. USER ACTIONS
+// 6. USER ACTIONS
 // ==========================================
 function buyDynamicShare(planId, planName, cost) {
     tg.showConfirm(`Purchase ${planName} for ₦${cost.toLocaleString()}?`, async (confirmed) => {
@@ -270,15 +363,15 @@ function buyDynamicShare(planId, planName, cost) {
 function switchTab(tabId) {
     tg.HapticFeedback.selectionChanged();
     
-    var ids = ['dashboard', 'shares', 'portfolio', 'referral', 'admin'];
+    var ids = ['dashboard', 'shares', 'portfolio', 'referral', 'profile', 'admin'];
     for(var i=0; i<ids.length; i++) {
         var viewEl = document.getElementById(ids[i] + 'View');
         var tabEl = document.getElementById('tab-' + ids[i]);
         if(viewEl) viewEl.classList.add('hidden');
         
         if(tabEl) {
-            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-300 hover:text-red-500 w-1/5 transition";
-            else tabEl.className = "flex flex-col items-center text-gray-400 hover:text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-300 hover:text-red-500 w-1/6 transition";
+            else tabEl.className = "flex flex-col items-center text-gray-400 hover:text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/6' : 'w-1/5') + " transition";
             
             var icon = tabEl.querySelector('i');
             if(icon) {
@@ -295,8 +388,8 @@ function switchTab(tabId) {
 
     var selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
-        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-600 w-1/5 transition";
-        else selectedTab.className = "flex flex-col items-center text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-600 w-1/6 transition";
+        else selectedTab.className = "flex flex-col items-center text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/6' : 'w-1/5') + " transition";
         
         var iconActive = selectedTab.querySelector('i');
         if(iconActive) {
@@ -311,7 +404,7 @@ function switchTab(tabId) {
 
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
-    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
+    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'profileView', 'adminView', 'bottomNav'];
     for(var i=0; i<ids.length; i++) {
         var el = document.getElementById(ids[i]);
         if(el) el.classList.add('hidden');
@@ -328,95 +421,4 @@ function showDepositPage() {
 }
 
 function showWithdrawPage() {
-    tg.HapticFeedback.impactOccurred('light');
-    var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
-    for(var i=0; i<ids.length; i++) {
-        var el = document.getElementById(ids[i]);
-        if(el) el.classList.add('hidden');
-    }
-    document.getElementById('withdrawView').classList.remove('hidden');
-    tg.BackButton.show();
-    tg.BackButton.onClick(() => {
-        document.getElementById('withdrawView').classList.add('hidden');
-        document.getElementById('bottomNav').classList.remove('hidden');
-        switchTab('dashboard');
-        tg.BackButton.hide();
-    });
-    window.scrollTo(0,0);
-}
-
-function setAmount(amount) {
-    tg.HapticFeedback.selectionChanged();
-    document.getElementById('depositAmount').value = amount;
-}
-
-// ==========================================
-// 6. REFERRAL LINK LOGIC
-// ==========================================
-function copyRefLink() {
-    tg.HapticFeedback.impactOccurred('medium');
-    const tempInput = document.createElement("input"); tempInput.value = MY_REF_LINK; document.body.appendChild(tempInput);
-    tempInput.select(); document.execCommand("copy"); document.body.removeChild(tempInput);
-    tg.showAlert("✅ Link copied!");
-}
-
-function shareLink() {
-    const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(MY_REF_LINK) + "&text=Join my premium network on SharePoint and start earning daily returns!";
-    tg.openTelegramLink(shareUrl);
-}
-
-// ==========================================
-// 7. TRANSACTIONS
-// ==========================================
-async function fundWallet() {
-    const amount = Number(document.getElementById('depositAmount').value);
-    const btn = document.getElementById('generateLinkBtn');
-    if (!amount || amount < 100) { tg.showAlert("Min deposit is ₦100."); return; }
-    
-    tg.HapticFeedback.impactOccurred('medium');
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Generating..."; btn.disabled = true; 
-
-    try {
-        const response = await fetch('/api/fund', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, amount: amount })
-        });
-        const result = await response.json();
-        btn.innerText = originalText; btn.disabled = false;
-
-        if (result.success) tg.openLink(result.checkoutUrl);
-        else tg.showAlert(`❌ Error: ${result.error}`);
-    } catch (error) {
-        btn.innerText = originalText; btn.disabled = false; tg.showAlert("Network error.");
-    }
-}
-
-async function processWithdrawal() {
-    const amount = Number(document.getElementById('withdrawAmount').value);
-    const bank = document.getElementById('withdrawBank').value;
-    const accNo = document.getElementById('withdrawAccNo').value;
-    const accName = document.getElementById('withdrawAccName').value;
-    const btn = document.getElementById('withdrawBtn');
-
-    if (!amount || amount < 1000) return tg.showAlert("Min withdrawal is ₦1,000.");
-    if (!bank || !accNo || !accName) return tg.showAlert("Fill all banking details.");
-
-    tg.MainButton.text = "Sending Request..."; tg.MainButton.show(); tg.MainButton.showProgress();
-    btn.disabled = true;
-
-    try {
-        const response = await fetch('/api/withdraw', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, userName: USER_NAME, amount: amount, bankName: bank, accNo: accNo, accName: accName })
-        });
-        const result = await response.json();
-        tg.MainButton.hide(); btn.disabled = false;
-
-        if (result.success) {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert("✅ Withdrawal request sent!");
-            loadDashboard(); tg.BackButton.click(); 
-        } else { tg.showAlert(`❌ Error: ${result.error}`); }
-    } catch (e) { tg.MainButton.hide(); btn.disabled = false; tg.showAlert("Network error."); }
-}
+    tg.HapticFeedback.impactOccurred('lig
