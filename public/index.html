@@ -1,4 +1,14 @@
-<!DOCTYPE html>
+
+# Create the three fixed files in the output directory
+import os
+
+output_dir = '/mnt/agents/output'
+os.makedirs(output_dir, exist_ok=True)
+
+# ==========================================
+# FILE 1: index.html
+# ==========================================
+index_html = '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -63,11 +73,12 @@
             border-top: 1px solid rgba(212, 175, 55, 0.2); 
         }
 
-        /* Profile avatar */
         .avatar-ring {
             box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
             border: 3px solid #D4AF37;
         }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body class="antialiased pb-24 min-h-screen">
@@ -78,7 +89,7 @@
         <div class="flex items-center justify-between px-5 pt-6 pb-2">
             <div class="flex items-center gap-2">
                 <div class="w-9 h-9 flex items-center justify-center drop-shadow-md">
-                    <img src="logo.png" alt="SharePoint Logo" class="w-full h-full object-contain">
+                    <img src="logo.png" alt="SharePoint Logo" class="w-full h-full object-contain" onerror="this.style.display='none'">
                 </div>
                 <h1 class="text-xl font-extrabold text-gray-900 tracking-tight">Share<span class="text-gold">Point</span></h1>
             </div>
@@ -89,13 +100,12 @@
         </div>
 
         <!-- DASHBOARD VIEW -->
-        <div id="dashboardView" class="block px-4 pt-4">
+        <div id="dashboardView" class="hidden px-4 pt-4">
             <div class="flex items-center justify-between mb-6 px-1">
                 <div>
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Welcome Back,</p>
                     <h1 class="text-2xl font-extrabold text-gray-900" id="userNameDisplay">Loading...</h1>
                 </div>
-                <!-- Profile Quick Access -->
                 <button onclick="switchTab('profile')" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#D4AF37]/10 transition active:scale-95">
                     <i class="fa-solid fa-user text-gray-600 text-sm"></i>
                 </button>
@@ -164,7 +174,6 @@
             <h2 class="text-2xl font-extrabold text-gray-900 mb-1">My <span class="text-gold">Profile</span></h2>
             <p class="text-gray-500 text-sm font-medium mb-6">Manage your personal and banking details.</p>
 
-            <!-- Profile Card -->
             <div class="card-glow rounded-[24px] p-6 mb-6 text-center relative overflow-hidden">
                 <div class="absolute -right-6 -top-6 opacity-10"><i class="fa-solid fa-user-circle text-9xl text-[#D4AF37]"></i></div>
                 <div class="w-20 h-20 rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#B8860B]/20 flex items-center justify-center mx-auto mb-4 avatar-ring relative z-10">
@@ -174,7 +183,6 @@
                 <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1 relative z-10" id="profileDisplayId">ID: --</p>
             </div>
 
-            <!-- Personal Info Section -->
             <div class="card rounded-2xl p-6 mb-5">
                 <div class="flex items-center gap-2 mb-4">
                     <div class="w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center">
@@ -182,7 +190,6 @@
                     </div>
                     <h4 class="text-gray-900 font-extrabold">Personal Info</h4>
                 </div>
-                
                 <div class="space-y-3">
                     <div>
                         <label class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">Display Name</label>
@@ -191,7 +198,6 @@
                 </div>
             </div>
 
-            <!-- Bank Details Section -->
             <div class="card rounded-2xl p-6 mb-5 border-t-4 border-t-gold">
                 <div class="flex items-center gap-2 mb-4">
                     <div class="w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center">
@@ -200,7 +206,6 @@
                     <h4 class="text-gray-900 font-extrabold">Bank Details</h4>
                 </div>
                 <p class="text-xs text-gray-400 mb-4 font-medium">These details will be auto-filled when you withdraw.</p>
-                
                 <div class="space-y-3">
                     <div>
                         <label class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">Bank Name</label>
@@ -217,12 +222,10 @@
                 </div>
             </div>
 
-            <!-- Save Button -->
             <button onclick="saveProfile()" id="saveProfileBtn" class="w-full btn-gold font-bold py-4 rounded-xl text-lg mb-6 shadow-lg">
                 <i class="fa-solid fa-floppy-disk mr-2"></i> Save Profile
             </button>
 
-            <!-- Saved Badge -->
             <div id="profileSavedBadge" class="hidden mb-6">
                 <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -259,7 +262,6 @@
                     <input type="number" id="newPlanCost" placeholder="Cost (₦)" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
                     <input type="number" id="newPlanDaily" placeholder="Daily Return (₦)" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
                     <input type="number" id="newPlanDuration" placeholder="Duration (Days)" class="w-full input-box rounded-xl p-3.5 mb-5 font-semibold">
-                    
                     <button onclick="adminAddPlan()" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-xl shadow-lg mb-2">Publish Plan</button>
                 </div>
             </div>
@@ -286,8 +288,6 @@
         <!-- WITHDRAW VIEW -->
         <div id="withdrawView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-6 text-center">Withdraw Funds</h2>
-            
-            <!-- Quick Profile Notice -->
             <div id="withdrawProfileNotice" class="hidden mb-4">
                 <div class="card rounded-xl p-4 border-l-4 border-l-[#D4AF37] bg-[#D4AF37]/5">
                     <div class="flex items-start gap-3">
@@ -299,7 +299,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="card p-6 rounded-2xl space-y-4 border-t-4 border-t-gray-900 shadow-lg">
                 <input type="number" id="withdrawAmount" placeholder="Amount (Min ₦1000)" class="w-full input-box rounded-xl p-4 font-bold">
                 <input type="text" id="withdrawBank" placeholder="Bank Name" class="w-full input-box rounded-xl p-4 font-medium">
@@ -324,4 +323,21 @@
                 <button onclick="switchTab('referral')" id="tab-referral" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/5 transition">
                     <i class="fa-solid fa-users text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Invites</span>
                 </button>
-                <button onclick="switchTab('profile')" id="tab-profile" class="flex flex-col ite
+                <button onclick="switchTab('profile')" id="tab-profile" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/5 transition">
+                    <i class="fa-solid fa-user-circle text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Profile</span>
+                </button>
+                <button onclick="switchTab('admin')" id="tab-admin" class="hidden flex-col items-center text-red-300 hover:text-red-500 w-1/6 transition">
+                    <i class="fa-solid fa-shield text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Admin</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>'''
+
+with open(os.path.join(output_dir, 'index.html'), 'w') as f:
+    f.write(index_html)
+
+print("✅ index.html written successfully")
