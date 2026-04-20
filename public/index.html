@@ -11,13 +11,12 @@
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
         body { 
             -webkit-tap-highlight-color: transparent; 
-            background-color: #FAFAFA; /* Premium White Background */
-            color: #111827; /* Dark Gray text for contrast */
+            background-color: #FAFAFA;
+            color: #111827;
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
         ::-webkit-scrollbar { display: none; }
         
-        /* Premium White Cards with Gold Glow */
         .card { 
             background-color: #FFFFFF; 
             border: 1px solid rgba(212, 175, 55, 0.2); 
@@ -31,11 +30,9 @@
             box-shadow: 0 0 25px rgba(212, 175, 55, 0.15);
         }
 
-        /* Dark Gold Elements */
         .text-gold { color: #D4AF37; }
         .bg-gold { background-color: #D4AF37; }
         
-        /* Glowing Buttons */
         .btn-gold {
             background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
             color: white;
@@ -48,19 +45,36 @@
         .btn-dark { background-color: #111827; color: #FFFFFF; }
         .btn-dark:active { transform: scale(0.96); }
 
-        /* Inputs */
-        .input-box { background-color: #F8FAFC; border: 1px solid #E2E8F0; color: #111827; }
-        .input-box:focus { border-color: #D4AF37; outline: none; box-shadow: 0 0 10px rgba(212, 175, 55, 0.2); }
+        .input-box { 
+            background-color: #F8FAFC; 
+            border: 1px solid #E2E8F0; 
+            color: #111827; 
+        }
+        .input-box:focus { 
+            border-color: #D4AF37; 
+            outline: none; 
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.2); 
+        }
         .input-box::placeholder { color: #94A3B8; }
 
-        /* Bottom Nav */
-        .bottom-nav { background-color: rgba(255, 255, 255, 0.95); backdrop-filter: blur(15px); border-top: 1px solid rgba(212, 175, 55, 0.2); }
+        .bottom-nav { 
+            background-color: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(15px); 
+            border-top: 1px solid rgba(212, 175, 55, 0.2); 
+        }
+
+        /* Profile avatar */
+        .avatar-ring {
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+            border: 3px solid #D4AF37;
+        }
     </style>
 </head>
 <body class="antialiased pb-24 min-h-screen">
 
     <div id="mainApp" class="block">
         
+        <!-- Header -->
         <div class="flex items-center justify-between px-5 pt-6 pb-2">
             <div class="flex items-center gap-2">
                 <div class="w-9 h-9 flex items-center justify-center drop-shadow-md">
@@ -74,12 +88,17 @@
             </button>
         </div>
 
+        <!-- DASHBOARD VIEW -->
         <div id="dashboardView" class="block px-4 pt-4">
             <div class="flex items-center justify-between mb-6 px-1">
                 <div>
                     <p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Welcome Back,</p>
                     <h1 class="text-2xl font-extrabold text-gray-900" id="userNameDisplay">Loading...</h1>
                 </div>
+                <!-- Profile Quick Access -->
+                <button onclick="switchTab('profile')" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-[#D4AF37]/10 transition active:scale-95">
+                    <i class="fa-solid fa-user text-gray-600 text-sm"></i>
+                </button>
             </div>
 
             <div class="space-y-5 mb-6">
@@ -98,6 +117,7 @@
             </div>
         </div>
 
+        <!-- SHARES VIEW -->
         <div id="sharesView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-1">Investment <span class="text-gold">Plans</span></h2>
             <p class="text-gray-500 text-sm font-medium mb-6">Purchase shares to earn glowing daily returns.</p>
@@ -106,12 +126,14 @@
             </div>
         </div>
 
+        <!-- PORTFOLIO VIEW -->
         <div id="portfolioView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-1">My <span class="text-gold">Portfolio</span></h2>
             <p class="text-gray-500 text-sm font-medium mb-6">Track your active, profit-generating assets.</p>
             <div id="investmentsList" class="space-y-4"></div>
         </div>
 
+        <!-- REFERRAL VIEW -->
         <div id="referralView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-1">Affiliate <span class="text-gold">Program</span></h2>
             <p class="text-gray-500 text-sm font-medium mb-6">Invite friends and earn instant commissions.</p>
@@ -137,6 +159,84 @@
             </div>
         </div>
 
+        <!-- PROFILE VIEW (NEW) -->
+        <div id="profileView" class="hidden px-4 pt-6">
+            <h2 class="text-2xl font-extrabold text-gray-900 mb-1">My <span class="text-gold">Profile</span></h2>
+            <p class="text-gray-500 text-sm font-medium mb-6">Manage your personal and banking details.</p>
+
+            <!-- Profile Card -->
+            <div class="card-glow rounded-[24px] p-6 mb-6 text-center relative overflow-hidden">
+                <div class="absolute -right-6 -top-6 opacity-10"><i class="fa-solid fa-user-circle text-9xl text-[#D4AF37]"></i></div>
+                <div class="w-20 h-20 rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#B8860B]/20 flex items-center justify-center mx-auto mb-4 avatar-ring relative z-10">
+                    <i class="fa-solid fa-user text-3xl text-[#D4AF37]"></i>
+                </div>
+                <h3 class="text-xl font-black text-gray-900 relative z-10" id="profileDisplayName">User</h3>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1 relative z-10" id="profileDisplayId">ID: --</p>
+            </div>
+
+            <!-- Personal Info Section -->
+            <div class="card rounded-2xl p-6 mb-5">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center">
+                        <i class="fa-solid fa-id-card text-[#D4AF37] text-sm"></i>
+                    </div>
+                    <h4 class="text-gray-900 font-extrabold">Personal Info</h4>
+                </div>
+                
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">Display Name</label>
+                        <input type="text" id="profileNameInput" placeholder="Enter your full name" class="w-full input-box rounded-xl p-3.5 font-semibold text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bank Details Section -->
+            <div class="card rounded-2xl p-6 mb-5 border-t-4 border-t-gold">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center">
+                        <i class="fa-solid fa-building-columns text-[#D4AF37] text-sm"></i>
+                    </div>
+                    <h4 class="text-gray-900 font-extrabold">Bank Details</h4>
+                </div>
+                <p class="text-xs text-gray-400 mb-4 font-medium">These details will be auto-filled when you withdraw.</p>
+                
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">Bank Name</label>
+                        <input type="text" id="profileBankInput" placeholder="e.g. First Bank, GTBank" class="w-full input-box rounded-xl p-3.5 font-semibold text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">Account Number</label>
+                        <input type="number" id="profileAccNoInput" placeholder="10-digit account number" class="w-full input-box rounded-xl p-3.5 font-semibold text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 block">Account Name</label>
+                        <input type="text" id="profileAccNameInput" placeholder="Name on bank account" class="w-full input-box rounded-xl p-3.5 font-semibold text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <button onclick="saveProfile()" id="saveProfileBtn" class="w-full btn-gold font-bold py-4 rounded-xl text-lg mb-6 shadow-lg">
+                <i class="fa-solid fa-floppy-disk mr-2"></i> Save Profile
+            </button>
+
+            <!-- Saved Badge -->
+            <div id="profileSavedBadge" class="hidden mb-6">
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <i class="fa-solid fa-check text-emerald-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-emerald-800 font-bold text-sm">Profile Saved!</p>
+                        <p class="text-emerald-600 text-xs">Your details are securely stored.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADMIN VIEW -->
         <div id="adminView" class="hidden px-4 pt-6 pb-20">
             <h2 class="text-2xl font-extrabold text-red-600 mb-6"><i class="fa-solid fa-shield-halved mr-2"></i>Admin Center</h2>
             
@@ -169,6 +269,7 @@
             </div>
         </div>
 
+        <!-- DEPOSIT VIEW -->
         <div id="depositView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-6 text-center">Deposit <span class="text-gold">Funds</span></h2>
             <div class="grid grid-cols-3 gap-3 mb-6">
@@ -182,8 +283,23 @@
             </div>
         </div>
 
+        <!-- WITHDRAW VIEW -->
         <div id="withdrawView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-gray-900 mb-6 text-center">Withdraw Funds</h2>
+            
+            <!-- Quick Profile Notice -->
+            <div id="withdrawProfileNotice" class="hidden mb-4">
+                <div class="card rounded-xl p-4 border-l-4 border-l-[#D4AF37] bg-[#D4AF37]/5">
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-circle-info text-[#D4AF37] mt-0.5"></i>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Profile details loaded!</p>
+                            <p class="text-xs text-gray-500 mt-0.5">Your saved bank details have been auto-filled.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card p-6 rounded-2xl space-y-4 border-t-4 border-t-gray-900 shadow-lg">
                 <input type="number" id="withdrawAmount" placeholder="Amount (Min ₦1000)" class="w-full input-box rounded-xl p-4 font-bold">
                 <input type="text" id="withdrawBank" placeholder="Bank Name" class="w-full input-box rounded-xl p-4 font-medium">
@@ -193,27 +309,19 @@
             </div>
         </div>
 
+        <!-- BOTTOM NAVIGATION -->
         <nav id="bottomNav" class="fixed bottom-0 left-0 w-full bottom-nav px-2 py-2 pb-safe z-50">
             <div class="flex justify-between items-center px-2" id="navFlexContainer">
-                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex flex-col items-center text-gold w-1/4 transition">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex flex-col items-center text-gold w-1/5 transition">
                     <i class="fa-solid fa-wallet text-2xl mb-1 drop-shadow-md"></i><span class="text-[10px] font-extrabold uppercase">Home</span>
                 </button>
-                <button onclick="switchTab('shares')" id="tab-shares" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/4 transition">
+                <button onclick="switchTab('shares')" id="tab-shares" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/5 transition">
                     <i class="fa-solid fa-layer-group text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Shares</span>
                 </button>
-                <button onclick="switchTab('portfolio')" id="tab-portfolio" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/4 transition">
+                <button onclick="switchTab('portfolio')" id="tab-portfolio" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/5 transition">
                     <i class="fa-solid fa-chart-line text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Portfolio</span>
                 </button>
-                <button onclick="switchTab('referral')" id="tab-referral" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/4 transition">
+                <button onclick="switchTab('referral')" id="tab-referral" class="flex flex-col items-center text-gray-400 hover:text-gold w-1/5 transition">
                     <i class="fa-solid fa-users text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Invites</span>
                 </button>
-                <button onclick="switchTab('admin')" id="tab-admin" class="hidden flex-col items-center text-red-300 hover:text-red-500 w-1/5 transition">
-                    <i class="fa-solid fa-shield text-xl mb-1"></i><span class="text-[10px] font-bold uppercase">Admin</span>
-                </button>
-            </div>
-        </nav>
-    </div>
-
-    <script src="script.js"></script>
-</body>
-    </html>
+                <button onclick="switchTab('profile')" id="tab-profile" class="flex flex-col ite
