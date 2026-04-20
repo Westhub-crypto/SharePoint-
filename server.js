@@ -1,4 +1,8 @@
-const express = require('express');
+
+# ==========================================
+# FILE 3: server.js (with Profile endpoints + fallback route)
+# ==========================================
+server_js = '''const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
 const path = require('path');
@@ -47,12 +51,12 @@ const ProfileSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
     tgId: { type: String, required: true, unique: true },
     username: { type: String }, 
-    registeredName: { type: String, default: "" },  // Custom name from profile
+    registeredName: { type: String, default: "" },
     walletBalance: { type: Number, default: 0 },       
     withdrawableBalance: { type: Number, default: 0 }, 
     referredBy: { type: String, default: null },
     isBanned: { type: Boolean, default: false },
-    profile: { type: ProfileSchema, default: () => ({}) }  // Embedded profile
+    profile: { type: ProfileSchema, default: () => ({}) }
 });
 const User = mongoose.model('User', UserSchema);
 
@@ -100,7 +104,7 @@ app.post('/api/login', async (req, res) => {
                 tgId: tgId, 
                 username: name, 
                 referredBy: referredBy,
-                registeredName: name  // Default to Telegram name initially
+                registeredName: name
             });
             await user.save();
         }
@@ -138,7 +142,6 @@ app.post('/api/profile', async (req, res) => {
         const user = await User.findOne({ tgId: tgId });
         if (!user) return res.status(404).json({ error: "User not found" });
 
-        // Update registered name and profile
         user.registeredName = name;
         user.profile = {
             name: name,
@@ -215,8 +218,8 @@ app.post('/api/admin/withdraw/resolve', isAdmin, async (req, res) => {
 
         if (bot) {
             const msg = action === 'approve' 
-                ? `🎉 *Withdrawal Approved!*\n\n₦${request.amount.toLocaleString()} has been sent to your bank.`
-                : `❌ *Withdrawal Rejected.*\n\nYour request for ₦${request.amount.toLocaleString()} was declined and refunded.`;
+                ? `🎉 *Withdrawal Approved!*\\n\\n₦${request.amount.toLocaleString()} has been sent to your bank.`
+                : `❌ *Withdrawal Rejected.*\\n\\nYour request for ₦${request.amount.toLocaleString()} was declined and refunded.`;
             bot.sendMessage(request.userId, msg, { parse_mode: 'Markdown' });
         }
         res.json({ success: true });
@@ -266,7 +269,7 @@ app.post('/api/withdraw', async (req, res) => {
         await request.save();
 
         if (bot && ADMIN_ID) {
-            const adminMsg = `🚨 *New Withdrawal Request*\n\n🆔 *ID:* ${request.refId}\n👤 *User:* ${userName}\n💰 *Amount:* ₦${amount.toLocaleString()}\n🏦 *Bank:* ${bankName}\n🔢 *Acc:* \`${accNo}\`\n📛 *Name:* ${accName}\n\n✅ Reply with:\n\`/paid ${request.refId}\``;
+            const adminMsg = `🚨 *New Withdrawal Request*\\n\\n🆔 *ID:* ${request.refId}\\n👤 *User:* ${userName}\\n💰 *Amount:* ₦${amount.toLocaleString()}\\n🏦 *Bank:* ${bankName}\\n🔢 *Acc:* \\`${accNo}\\`\\n📛 *Name:* ${accName}\\n\\n✅ Reply with:\\n\\`/paid ${request.refId}\\``;
             bot.sendMessage(ADMIN_ID, adminMsg, { parse_mode: 'Markdown' });
         }
         res.json({ success: true, newBalance: user.withdrawableBalance });
@@ -304,7 +307,7 @@ app.post('/webhook/squad', async (req, res) => {
                 const user = await User.findOne({ tgId: tgId });
                 if (user) {
                     user.walletBalance += amountInNaira; await user.save();
-                    if (bot) bot.sendMessage(tgId, `✅ *Deposit Successful!*\n\n₦${amountInNaira.toLocaleString()} added to your Wallet.`, { parse_mode: 'Markdown' });
+                    if (bot) bot.sendMessage(tgId, `✅ *Deposit Successful!*\\n\\n₦${amountInNaira.toLocaleString()} added to your Wallet.`, { parse_mode: 'Markdown' });
                 }
             }
         }
@@ -312,7 +315,7 @@ app.post('/webhook/squad', async (req, res) => {
 });
 
 if (bot) {
-    bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
+    bot.onText(/\\/start(?: (.+))?/, async (msg, match) => {
         const tgId = msg.chat.id.toString();
         const name = msg.from.first_name || "User";
         const referredBy = match[1] ? match[1].trim() : null; 
@@ -328,12 +331,12 @@ if (bot) {
                 await user.save(); 
             }
             
-            const welcomeMsg = `🌟 *Welcome to SharePoint, ${user.registeredName || name}!* 🌟\n\n` +
-                               `Are you ready to unlock your financial freedom? SharePoint is an elite automated earning platform designed to generate passive wealth.\n\n` +
-                               `💰 *Why Join SharePoint?*\n` +
-                               `• Earn up to *₦150,000+ daily* directly to your wallet.\n` +
-                               `• Rapid, secure, and automated bank withdrawals.\n` +
-                               `• Gain a massive *15% commission* on every friend you invite!\n\n` +
+            const welcomeMsg = `🌟 *Welcome to SharePoint, ${user.registeredName || name}!* 🌟\\n\\n` +
+                               `Are you ready to unlock your financial freedom? SharePoint is an elite automated earning platform designed to generate passive wealth.\\n\\n` +
+                               `💰 *Why Join SharePoint?*\\n` +
+                               `• Earn up to *₦150,000+ daily* directly to your wallet.\\n` +
+                               `• Rapid, secure, and automated bank withdrawals.\\n` +
+                               `• Gain a massive *15% commission* on every friend you invite!\\n\\n` +
                                `👇 *Click the button below to launch your glowing dashboard and start earning instantly!*`;
 
             const opts = {
@@ -349,7 +352,7 @@ if (bot) {
         } catch (err) { console.error("Bot Start Error:", err); }
     });
 
-    bot.onText(/\/paid (.+)/, async (msg, match) => {
+    bot.onText(/\\/paid (.+)/, async (msg, match) => {
         if (msg.chat.id.toString() !== ADMIN_ID) return;
         const refId = match[1].trim();
         try {
@@ -357,7 +360,7 @@ if (bot) {
             if (!withdrawal) return bot.sendMessage(ADMIN_ID, `❌ Pending request not found.`);
             withdrawal.status = "Paid"; await withdrawal.save();
             bot.sendMessage(ADMIN_ID, `✅ Payout ${refId} PAID!`);
-            bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\n\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
+            bot.sendMessage(withdrawal.userId, `🎉 *Withdrawal Successful!*\\n\\n₦${withdrawal.amount.toLocaleString()} has been sent to your bank.`, { parse_mode: 'Markdown' });
         } catch (err) { bot.sendMessage(ADMIN_ID, `❌ Error.`); }
     });
 }
@@ -380,6 +383,22 @@ cron.schedule('0 0 * * *', async () => {
     } catch (error) { }
 });
 
+// ==========================================
+// FALLBACK: Serve index.html for all other routes
+// (Required for Telegram WebApp and client-side routing)
+// ==========================================
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-               
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));'''
+
+with open(os.path.join(output_dir, 'server.js'), 'w') as f:
+    f.write(server_js)
+
+print("✅ server.js written successfully")
+print("\n📁 All three files saved to /mnt/agents/output/")
+print("   - index.html")
+print("   - script.js")  
+print("   - server.js")
