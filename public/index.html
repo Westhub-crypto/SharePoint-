@@ -14,9 +14,9 @@
         .card-glow { background-color: #0C221A; border: 1px solid rgba(0,255,135,0.4); box-shadow: 0 0 20px rgba(0,255,135,0.1); }
         .text-neon { color: #00FF87; }
         .bg-neon { background-color: #00FF87; }
-        .btn-neon { background-color: #00FF87; color: #061410; box-shadow: 0 0 15px rgba(0,255,135,0.2); transition: all 0.3s ease; }
+        .btn-neon { background-color: #00FF87; color: #061410; box-shadow: 0 0 15px rgba(0,255,135,0.2); transition: all 0.3s ease; cursor: pointer; }
         .btn-neon:active { transform: scale(0.96); box-shadow: 0 0 5px rgba(0,255,135,0.5); }
-        .btn-white { background-color: #FFFFFF; color: #061410; border: 1px solid #E2E8F0; }
+        .btn-white { background-color: #FFFFFF; color: #061410; border: 1px solid #E2E8F0; cursor: pointer; }
         .btn-white:active { transform: scale(0.96); }
         .input-box { background-color: #061410; border: 1px solid #143D2F; color: #FFFFFF; }
         .input-box:focus { border-color: #00FF87; outline: none; }
@@ -31,7 +31,6 @@
                 <i class="fa-solid fa-bolt text-3xl"></i>
             </div>
             <h1 class="text-3xl font-black text-white tracking-tight">Share<span class="text-neon">Point</span></h1>
-            <p class="text-[#4A7A66] font-medium mt-2 text-sm">Automated Wealth Management</p>
         </div>
 
         <div id="loginBox" class="block">
@@ -63,8 +62,8 @@
                 <div class="w-8 h-8 flex items-center justify-center bg-neon text-[#061410] rounded-lg shadow-lg"><i class="fa-solid fa-bolt text-lg"></i></div>
                 <h1 class="text-xl font-extrabold text-white tracking-tight">Share<span class="text-neon">Point</span></h1>
             </div>
-            <button onclick="logout()" class="flex items-center gap-2 bg-red-500/10 text-red-500 border border-red-500/30 px-5 py-2 rounded-full text-xs font-bold transition active:scale-95">
-                <i class="fa-solid fa-right-from-bracket"></i> Logout
+            <button onclick="switchTab('support')" class="flex items-center gap-2 bg-[#00FF87]/10 text-neon border border-[#00FF87]/30 px-5 py-2 rounded-full text-xs font-bold transition active:scale-95">
+                <i class="fa-solid fa-headset"></i> Support
             </button>
         </div>
 
@@ -72,18 +71,34 @@
             <div class="flex items-center justify-between mb-4 px-1">
                 <div><p class="text-[#4A7A66] text-xs font-bold uppercase tracking-widest">Welcome Back,</p><h1 class="text-2xl font-extrabold text-white" id="userNameDisplay">Loading...</h1></div>
             </div>
+            
             <div class="space-y-4 mb-6">
                 <div class="card-glow rounded-[24px] p-6 relative overflow-hidden">
                     <div class="absolute -right-4 -top-4 opacity-5"><i class="fa-solid fa-coins text-8xl text-white"></i></div>
                     <div class="flex justify-between items-center mb-1 relative z-10"><p class="text-[#4A7A66] text-xs uppercase tracking-widest font-bold">Total Balance</p><span class="bg-[#00FF87]/10 text-neon text-[10px] px-3 py-1 rounded-full font-bold border border-[#00FF87]/20">● ACTIVE</span></div>
                     <h2 class="text-4xl font-black text-white mb-6 relative z-10" id="walletBalanceDisplay">₦0</h2>
-                    <button onclick="showDepositPage()" class="w-full btn-neon text-sm font-black py-4 rounded-full transition relative z-10">Deposit Funds</button>
+                    <div class="flex gap-3 relative z-10">
+                        <button onclick="switchTab('deposit')" class="w-1/2 btn-neon text-sm font-black py-3 rounded-full transition">Deposit</button>
+                        <button onclick="switchTab('withdraw')" class="w-1/2 btn-white text-sm font-black py-3 rounded-full transition">Withdraw</button>
+                    </div>
                 </div>
-                <div class="card rounded-[24px] p-6 relative overflow-hidden">
-                    <p class="text-[#4A7A66] text-xs uppercase tracking-widest mb-1 font-bold">Total Earnings</p>
-                    <h2 class="text-3xl font-black text-neon mb-6" id="withdrawableBalanceDisplay">₦0</h2>
-                    <button onclick="showWithdrawPage()" class="w-full btn-white text-sm font-black py-4 rounded-full transition">Withdraw Funds</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="card rounded-2xl p-4">
+                    <p class="text-[10px] text-[#4A7A66] uppercase tracking-widest font-bold mb-1"><i class="fa-solid fa-arrow-trend-up text-neon mr-1"></i> Earnings</p>
+                    <h3 class="text-xl font-black text-white" id="withdrawableBalanceDisplay">₦0</h3>
                 </div>
+                <div class="card rounded-2xl p-4">
+                    <p class="text-[10px] text-[#4A7A66] uppercase tracking-widest font-bold mb-1"><i class="fa-solid fa-users text-neon mr-1"></i> Team Size</p>
+                    <h3 class="text-xl font-black text-white" id="dashboardRefDisplay">0</h3>
+                </div>
+            </div>
+
+            <h3 class="text-lg font-extrabold text-white mb-3 px-1">Recent Activity</h3>
+            <div class="card rounded-2xl p-5 mb-4 border-l-4 border-l-neon flex justify-between items-center">
+                <div><p class="font-bold text-white text-sm">System Login</p><p class="text-[10px] text-[#4A7A66] mt-1">Authentication successful</p></div>
+                <p class="text-xs text-neon font-bold">Just now</p>
             </div>
         </div>
 
@@ -100,24 +115,80 @@
 
         <div id="referralView" class="hidden px-4 pt-6">
             <h2 class="text-2xl font-extrabold text-white mb-1">Affiliate <span class="text-neon">Program</span></h2>
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div class="card rounded-2xl p-5 text-center"><h3 class="text-3xl font-black text-white" id="referralCountDisplay">0</h3><p class="text-[10px] text-[#4A7A66] uppercase tracking-widest font-bold mt-1">Total Invites</p></div>
-                <div class="card-glow rounded-2xl p-5 text-center"><h3 class="text-2xl font-black text-neon">15%</h3><p class="text-[10px] text-[#4A7A66] uppercase tracking-widest font-bold mt-1">Reward Rate</p></div>
+            <div class="card rounded-2xl p-6 mb-6 text-center">
+                <h3 class="text-4xl font-black text-neon mb-1" id="referralCountDisplay">0</h3>
+                <p class="text-xs text-[#4A7A66] uppercase tracking-widest font-bold">Total Partners</p>
             </div>
             <div class="card rounded-2xl p-6">
                 <h4 class="text-white font-extrabold mb-3">Your Invite Link</h4>
                 <div class="input-box rounded-xl p-4 flex justify-between items-center mb-5"><p id="refLinkText" class="text-neon text-xs overflow-hidden text-ellipsis whitespace-nowrap mr-2 font-bold"></p><button onclick="copyRefLink()" class="text-[#4A7A66] hover:text-neon transition"><i class="fa-solid fa-copy text-xl"></i></button></div>
-                <button onclick="shareLink()" class="w-full btn-neon font-black py-4 rounded-full">Share Link Now</button>
+            </div>
+        </div>
+
+        <div id="profileView" class="hidden px-4 pt-6 pb-20">
+            <h2 class="text-2xl font-extrabold text-white mb-6">My <span class="text-neon">Profile</span></h2>
+            <div class="card p-6 rounded-[24px] text-center mb-6">
+                <div class="w-20 h-20 mx-auto bg-[#143D2F] rounded-full flex items-center justify-center mb-4 border-2 border-neon">
+                    <i class="fa-solid fa-user text-3xl text-neon"></i>
+                </div>
+                <h3 class="text-2xl font-black text-white" id="profileName">Loading...</h3>
+                <p class="text-[#4A7A66] text-sm font-bold mt-1" id="profileEmail">Loading...</p>
+                <div class="mt-4 inline-block bg-[#00FF87]/10 text-neon text-[10px] px-4 py-1.5 rounded-full font-bold border border-[#00FF87]/20 uppercase" id="profileRole">User</div>
+            </div>
+            <div class="space-y-3">
+                <button onclick="switchTab('admin')" id="profileAdminBtn" class="hidden w-full card p-4 rounded-xl flex justify-between items-center text-red-500 font-bold border-red-500/30">
+                    <span><i class="fa-solid fa-shield-halved mr-2"></i> Admin Panel</span> <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+                <button onclick="logout()" class="w-full card p-4 rounded-xl flex justify-between items-center text-white font-bold hover:border-red-500 transition">
+                    <span><i class="fa-solid fa-right-from-bracket mr-2 text-[#4A7A66]"></i> Sign Out</span> <i class="fa-solid fa-chevron-right text-xs text-[#4A7A66]"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="supportView" class="hidden px-4 pt-6">
+            <button onclick="switchTab('dashboard')" class="text-[#4A7A66] mb-4 font-bold"><i class="fa-solid fa-arrow-left mr-2"></i>Back</button>
+            <h2 class="text-2xl font-extrabold text-white mb-1">Help & <span class="text-neon">Support</span></h2>
+            <p class="text-[#4A7A66] text-sm mb-6">Send us a message and an agent will assist you.</p>
+            <div class="card p-6 rounded-2xl">
+                <textarea id="supportMessage" placeholder="Describe your issue..." class="w-full input-box rounded-xl p-4 h-32 mb-4 font-medium resize-none"></textarea>
+                <button onclick="sendSupportMessage()" id="supportBtn" class="w-full btn-neon font-black py-4 rounded-full">Send Message</button>
+            </div>
+        </div>
+
+        <div id="depositView" class="hidden px-4 pt-6">
+            <button onclick="switchTab('dashboard')" class="text-[#4A7A66] mb-4 font-bold"><i class="fa-solid fa-arrow-left mr-2"></i>Back</button>
+            <h2 class="text-2xl font-extrabold text-white mb-6 text-center">Deposit <span class="text-neon">Funds</span></h2>
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="setAmount(10000)" class="card py-4 rounded-xl font-bold text-white hover:border-[#00FF87] hover:text-neon transition">₦10k</button>
+                <button onclick="setAmount(50000)" class="card py-4 rounded-xl font-bold text-white hover:border-[#00FF87] hover:text-neon transition">₦50k</button>
+                <button onclick="setAmount(100000)" class="card py-4 rounded-xl font-bold text-white hover:border-[#00FF87] hover:text-neon transition">₦100k</button>
+            </div>
+            <div class="card-glow p-5 rounded-2xl">
+                <input type="number" id="depositAmount" placeholder="Amount (₦)" class="w-full input-box text-xl font-black rounded-xl p-4 mb-4 text-center">
+                <button onclick="fundWallet()" id="generateLinkBtn" class="w-full btn-neon font-black py-4 rounded-full text-lg">Proceed to Pay</button>
+            </div>
+        </div>
+
+        <div id="withdrawView" class="hidden px-4 pt-6">
+            <button onclick="switchTab('dashboard')" class="text-[#4A7A66] mb-4 font-bold"><i class="fa-solid fa-arrow-left mr-2"></i>Back</button>
+            <h2 class="text-2xl font-extrabold text-white mb-6 text-center">Withdraw Funds</h2>
+            <div class="card p-6 rounded-2xl space-y-4 shadow-lg">
+                <input type="number" id="withdrawAmount" placeholder="Amount (Min ₦1000)" class="w-full input-box rounded-xl p-4 font-bold">
+                <input type="text" id="withdrawBank" placeholder="Bank Name" class="w-full input-box rounded-xl p-4 font-medium">
+                <input type="number" id="withdrawAccNo" placeholder="Account Number" class="w-full input-box rounded-xl p-4 font-medium">
+                <input type="text" id="withdrawAccName" placeholder="Account Name" class="w-full input-box rounded-xl p-4 font-medium">
+                <button onclick="processWithdrawal()" id="withdrawBtn" class="w-full btn-white font-black py-4 rounded-full text-lg shadow-md mt-2">Request Payout</button>
             </div>
         </div>
 
         <div id="adminView" class="hidden px-4 pt-6 pb-20">
+            <button onclick="switchTab('profile')" class="text-[#4A7A66] mb-4 font-bold"><i class="fa-solid fa-arrow-left mr-2"></i>Back to Profile</button>
             <h2 class="text-2xl font-extrabold text-red-500 mb-6"><i class="fa-solid fa-shield-halved mr-2"></i>Admin Center</h2>
             <div class="flex space-x-2 mb-6 overflow-x-auto pb-2">
                 <button onclick="switchAdminSubTab('withdrawals')" class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-full text-xs font-bold border border-red-500/30 whitespace-nowrap">Withdrawals</button>
                 <button onclick="switchAdminSubTab('plans')" class="px-5 py-2.5 bg-[#0C221A] border border-[#143D2F] text-white rounded-full text-xs font-bold whitespace-nowrap">Add Plan</button>
             </div>
-            <div id="admin-withdrawals" class="space-y-4"><div id="adminWithdrawalList" class="space-y-4"></div></div>
+            <div id="admin-withdrawals" class="space-y-4"><div id="adminWithdrawalList" class="space-y-4 text-center text-sm text-[#4A7A66]">No pending requests.</div></div>
             <div id="admin-plans" class="hidden">
                 <div class="card p-6 rounded-2xl mb-6">
                     <input type="text" id="newPlanName" placeholder="Plan Name" class="w-full input-box rounded-xl p-3.5 mb-3 font-semibold">
@@ -132,15 +203,15 @@
 
         <nav id="bottomNav" class="fixed bottom-0 left-0 w-full bottom-nav px-2 py-3 pb-safe z-50">
             <div class="flex justify-between items-center px-2" id="navFlexContainer">
-                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex flex-col items-center text-neon w-1/4 transition"><i class="fa-solid fa-wallet text-2xl mb-1 drop-shadow-md"></i><span class="text-[9px] font-extrabold uppercase tracking-wide">Home</span></button>
-                <button onclick="switchTab('shares')" id="tab-shares" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/4 transition"><i class="fa-solid fa-layer-group text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Invest Plans</span></button>
-                <button onclick="switchTab('portfolio')" id="tab-portfolio" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/4 transition"><i class="fa-solid fa-chart-line text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Portfolio</span></button>
-                <button onclick="switchTab('referral')" id="tab-referral" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/4 transition"><i class="fa-solid fa-users text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Invites</span></button>
-                <button onclick="switchTab('admin')" id="tab-admin" class="hidden flex-col items-center text-red-500/70 hover:text-red-500 w-1/5 transition"><i class="fa-solid fa-shield text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Admin</span></button>
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="flex flex-col items-center text-neon w-1/5 transition"><i class="fa-solid fa-wallet text-2xl mb-1 drop-shadow-md"></i><span class="text-[9px] font-extrabold uppercase tracking-wide">Home</span></button>
+                <button onclick="switchTab('shares')" id="tab-shares" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/5 transition"><i class="fa-solid fa-layer-group text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Plans</span></button>
+                <button onclick="switchTab('portfolio')" id="tab-portfolio" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/5 transition"><i class="fa-solid fa-chart-line text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Assets</span></button>
+                <button onclick="switchTab('referral')" id="tab-referral" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/5 transition"><i class="fa-solid fa-users text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Team</span></button>
+                <button onclick="switchTab('profile')" id="tab-profile" class="flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/5 transition"><i class="fa-solid fa-user text-2xl mb-1"></i><span class="text-[9px] font-bold uppercase tracking-wide">Profile</span></button>
             </div>
         </nav>
     </div>
 
     <script src="script.js"></script>
 </body>
-                                                                                      </html>
+    </html>
