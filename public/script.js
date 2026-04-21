@@ -36,10 +36,10 @@ async function handleRegister() {
         });
         const result = await response.json();
         if (result.success) {
-            alert("Success! Please sign in.");
+            alert("Registration Success! Please sign in.");
             toggleAuth('login');
         } else { alert(result.error); }
-    } catch (e) { alert("Network error."); }
+    } catch (e) { alert("Network error. Please check your connection."); }
     document.getElementById('regBtn').innerText = "Register";
 }
 
@@ -60,10 +60,9 @@ async function handleLogin() {
         if (data.success) {
             localStorage.setItem('sharepoint_token', data.token);
             currentToken = data.token;
-            currentUser = data.user;
             setupDashboard(data);
         } else { alert(data.error); }
-    } catch (e) { alert("Network error."); }
+    } catch (e) { alert("Network error. Please try again."); }
     document.getElementById('loginBtn').innerText = "Login";
 }
 
@@ -80,39 +79,48 @@ async function loadDashboard() {
         const data = await response.json();
         
         if (data.success) {
-            currentUser = data.user;
             setupDashboard(data);
         } else {
-            logout(); // Token expired or invalid
+            logout(); // Token expired
         }
-    } catch (e) { alert("Network error. Please refresh."); }
+    } catch (e) { console.log("Silent network error on auto-login"); }
 }
 
 function setupDashboard(data) {
+    currentUser = data.user;
+
     document.getElementById('authContainer').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     
+    // Populate Dashboard Data
     document.getElementById('userNameDisplay').innerText = currentUser.username;
     document.getElementById('walletBalanceDisplay').innerText = `₦${currentUser.walletBalance.toLocaleString()}`;
     document.getElementById('withdrawableBalanceDisplay').innerText = `₦${currentUser.withdrawableBalance.toLocaleString()}`;
+    document.getElementById('dashboardRefDisplay').innerText = data.referralCount;
+    document.getElementById('referralCountDisplay').innerText = data.referralCount;
     
-    // Website Referral Link format
+    // Populate Profile Data
+    document.getElementById('profileName').innerText = currentUser.username;
+    document.getElementById('profileEmail').innerText = currentUser.email || "No email on file";
+    document.getElementById('profileRole').innerText = currentUser.role;
+
+    // Website Referral Link
     const refLink = window.location.origin + "?ref=" + currentUser.id;
     document.getElementById('refLinkText').innerText = refLink;
-    document.getElementById('referralCountDisplay').innerText = data.referralCount;
 
-    // Admin Controls
+    // Show Admin Button in profile if user is admin
     if (currentUser.role === 'admin') {
-        document.getElementById('tab-admin').classList.remove('hidden');
-        document.getElementById('tab-admin').classList.add('flex');
-        const buttons = document.querySelectorAll('#navFlexContainer button');
-        buttons.forEach(btn => { btn.classList.remove('w-1/4'); btn.classList.add('w-1/5'); });
+        document.getElementById('profileAdminBtn').classList.remove('hidden');
+        document.getElementById('profileAdminBtn').classList.add('flex');
     }
 
     renderPlans(data.plans);
     renderPortfolio(data.investments);
 }
 
+// ==========================================
+// RENDER UI ELEMENTS
+// ==========================================
 function renderPlans(plans) {
     const plansList = document.getElementById('dynamicPlansList');
     if (plans && plans.length > 0) {
@@ -128,7 +136,6 @@ function renderPlans(plans) {
                     </div>
                 </div>
                 <div class="bg-[#061410] rounded-xl p-4 text-sm text-gray-300 border border-[#143D2F] mb-5">
-                    <p class="text-[10px] text-neon font-bold mb-3 uppercase tracking-widest">Earning Structure</p>
                     <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2"><span class="font-medium text-[#4A7A66]">Daily:</span> <span class="font-bold text-white">₦${plan.dailyReturn.toLocaleString()}</span></div>
                     <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2"><span class="font-medium text-[#4A7A66]">Duration:</span> <span class="font-bold text-white">${plan.duration} Days</span></div>
                     <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2"><span class="font-medium text-[#4A7A66]">Profit:</span> <span class="font-bold text-white">₦${totalProfit.toLocaleString()}</span></div>
@@ -137,6 +144,8 @@ function renderPlans(plans) {
                 <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="w-full btn-neon py-3.5 rounded-full text-sm font-black shadow-lg uppercase tracking-wide">Purchase Plan</button>
             </div>`
         }).join('');
+    } else {
+        plansList.innerHTML = `<p class="text-center text-[#4A7A66]">No plans available right now.</p>`;
     }
 }
 
@@ -149,25 +158,184 @@ function renderPortfolio(investments) {
                 <div class="text-right"><p class="text-3xl font-black text-white">${inv.daysLeft}</p><p class="text-[9px] text-[#4A7A66] uppercase tracking-widest font-bold">Days Left</p></div>
             </div>
         `).join('');
+    } else {
+        invList.innerHTML = `<p class="text-center text-[#4A7A66]">You have no active assets.</p>`;
     }
 }
 
+// ==========================================
+// NAVIGATION SYSTEM
+// ==========================================
 function switchTab(tabId) {
-    const ids = ['dashboard', 'shares', 'portfolio', 'referral', 'admin'];
-    ids.forEach(id => {
+    // Hide all major views
+    const allViews = ['dashboard', 'shares', 'portfolio', 'referral', 'profile', 'admin', 'deposit', 'withdraw', 'support'];
+    allViews.forEach(id => {
         const viewEl = document.getElementById(id + 'View');
         if(viewEl) viewEl.classList.add('hidden');
     });
+
+    // Reset bottom nav colors
+    const navItems = ['dashboard', 'shares', 'portfolio', 'referral', 'profile'];
+    navItems.forEach(id => {
+        const tabEl = document.getElementById('tab-' + id);
+        if (tabEl) {
+            tabEl.className = "flex flex-col items-center text-[#4A7A66] hover:text-neon w-1/5 transition";
+            tabEl.querySelector('span').classList.remove('font-extrabold');
+            tabEl.querySelector('span').classList.add('font-bold');
+        }
+    });
+
+    // Show the requested view
     const selectedView = document.getElementById(tabId + 'View');
     if(selectedView) selectedView.classList.remove('hidden');
+
+    // Highlight bottom nav if applicable
+    const selectedTab = document.getElementById('tab-' + tabId);
+    if(selectedTab) {
+        selectedTab.className = "flex flex-col items-center text-[#00FF87] w-1/5 transition";
+        selectedTab.querySelector('span').classList.remove('font-bold');
+        selectedTab.querySelector('span').classList.add('font-extrabold');
+    }
+    
+    // Toggle bottom nav visibility (hide on sub-pages)
+    if (['deposit', 'withdraw', 'admin', 'support'].includes(tabId)) {
+        document.getElementById('bottomNav').classList.add('hidden');
+    } else {
+        document.getElementById('bottomNav').classList.remove('hidden');
+    }
+
     window.scrollTo(0,0);
 }
 
+// ==========================================
+// TRANSACTION ACTIONS (FIXED FOR WEB)
+// ==========================================
+function setAmount(amount) {
+    document.getElementById('depositAmount').value = amount;
+}
+
+async function fundWallet() {
+    const amount = Number(document.getElementById('depositAmount').value);
+    const btn = document.getElementById('generateLinkBtn');
+    
+    if (!amount || amount < 100) return alert("Minimum deposit is ₦100.");
+    
+    btn.innerText = "Processing..."; 
+    btn.disabled = true; 
+
+    try {
+        const response = await fetch('/api/fund', {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            body: JSON.stringify({ amount: amount })
+        });
+        const result = await response.json();
+        
+        btn.innerText = "Proceed to Pay"; 
+        btn.disabled = false;
+
+        if (result.success) {
+            // Replaced tg.openLink with standard Web redirect
+            window.location.href = result.checkoutUrl;
+        } else { 
+            alert(`Error: ${result.error}`); 
+        }
+    } catch (error) {
+        btn.innerText = "Proceed to Pay"; 
+        btn.disabled = false; 
+        alert("Network error.");
+    }
+}
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+    const btn = document.getElementById('withdrawBtn');
+
+    if (!amount || amount < 1000) return alert("Minimum withdrawal is ₦1,000.");
+    if (!bank || !accNo || !accName) return alert("Please fill all banking details.");
+
+    btn.innerText = "Sending Request..."; 
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            body: JSON.stringify({ amount: amount, bankName: bank, accNo: accNo, accName: accName })
+        });
+        const result = await response.json();
+        
+        btn.disabled = false;
+        btn.innerText = "Request Payout";
+
+        if (result.success) {
+            alert("✅ Withdrawal request sent successfully!");
+            switchTab('dashboard'); 
+            loadDashboard(); // refresh balances
+        } else { 
+            alert(`❌ Error: ${result.error}`); 
+        }
+    } catch (e) { 
+        btn.disabled = false; 
+        btn.innerText = "Request Payout";
+        alert("Network error."); 
+    }
+}
+
+async function buyDynamicShare(planId, planName, cost) {
+    // Replaced tg.showConfirm with standard Web confirm box
+    const confirmed = confirm(`Are you sure you want to purchase ${planName} for ₦${cost.toLocaleString()}?`);
+    if (!confirmed) return;
+
+    try {
+        const res = await fetch('/api/buy-share', {
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            body: JSON.stringify({ planId: planId })
+        });
+        const result = await res.json();
+        
+        if (result.success) { 
+            alert("✅ Success! Asset purchased. You can track it in your Portfolio."); 
+            loadDashboard(); 
+            switchTab('portfolio'); 
+        } else { 
+            alert(`❌ ${result.error}`); 
+        }
+    } catch (e) { 
+        alert("Transaction failed. Check your network connection."); 
+    }
+}
+
+// ==========================================
+// SUPPORT SYSTEM
+// ==========================================
+function sendSupportMessage() {
+    const msg = document.getElementById('supportMessage').value;
+    const btn = document.getElementById('supportBtn');
+    
+    if (!msg.trim()) return alert("Please enter a message before sending.");
+
+    btn.innerText = "Sending...";
+    btn.disabled = true;
+
+    // Simulate sending for now until you create the backend route
+    setTimeout(() => {
+        alert("✅ Message sent to the support team. An agent will contact you shortly.");
+        document.getElementById('supportMessage').value = "";
+        btn.innerText = "Send Message";
+        btn.disabled = false;
+        switchTab('dashboard');
+    }, 1500);
+}
+
+// ==========================================
+// UTILITIES
+// ==========================================
 function copyRefLink() {
     navigator.clipboard.writeText(document.getElementById('refLinkText').innerText);
-    alert("✅ Link copied!");
-}
-function shareLink() {
-    const url = encodeURIComponent(document.getElementById('refLinkText').innerText);
-    window.open(`https://api.whatsapp.com/send?text=Join SharePoint Premium! ${url}`);
-    }
+    alert("✅ Link copied to clipboard!");
+                }
