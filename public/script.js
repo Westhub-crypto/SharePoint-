@@ -28,35 +28,106 @@ function appConfirm(message, callback, title = "Please Confirm") {
 function closeAppModal() { document.getElementById('customModal').classList.remove('modal-active'); document.getElementById('customModalContent').classList.remove('modal-content-active'); }
 function executeConfirm() { closeAppModal(); if (confirmCallback) confirmCallback(); }
 
-window.onload = () => { const t = localStorage.getItem('sharepoint_token'); if (t) { currentToken = t; loadDashboard(); } };
+window.onload = async () => { 
+    const t = localStorage.getItem('sharepoint_token'); 
+    if (t) { currentToken = t; await loadDashboard(); } 
+};
 
 function toggleAuth(type) {
-    document.getElementById('loginBox').classList.add('hidden'); document.getElementById('registerBox').classList.add('hidden');
-    if (type === 'register') document.getElementById('registerBox').classList.remove('hidden'); else document.getElementById('loginBox').classList.remove('hidden');
+    document.getElementById('loginBox').classList.add('hidden'); 
+    document.getElementById('registerBox').classList.add('hidden');
+    document.getElementById('forgotPasswordBox').classList.add('hidden');
+
+    if (type === 'register') document.getElementById('registerBox').classList.remove('hidden'); 
+    else if (type === 'forgot') document.getElementById('forgotPasswordBox').classList.remove('hidden');
+    else document.getElementById('loginBox').classList.remove('hidden');
 }
 
 async function handleRegister() {
-    const user = document.getElementById('regUsername').value; const email = document.getElementById('regEmail').value; const pass = document.getElementById('regPassword').value;
+    const user = document.getElementById('regUsername').value; 
+    const email = document.getElementById('regEmail').value; 
+    const pass = document.getElementById('regPassword').value;
+    
     if(!user || !email || !pass) return appAlert("Fill all fields.", "Error", true);
-    document.getElementById('regBtn').innerText = "Processing...";
+    
+    const btn = document.getElementById('regBtn');
+    btn.innerText = "Processing...";
+    btn.disabled = true;
+
     try {
         const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: user, email, password: pass}) });
-        const data = await res.json();
-        if (data.success) { appAlert("Account created! Please sign in.", "Success"); toggleAuth('login'); } else appAlert(data.error, "Error", true);
-    } catch(e) { appAlert("Network error", "Error", true); }
-    document.getElementById('regBtn').innerText = "Register";
+        let data;
+        try { data = await res.json(); } catch(err) { throw new Error("Server returned an invalid response."); }
+
+        if (data.success) { 
+            appAlert("Account created! Please sign in.", "Success"); 
+            toggleAuth('login'); 
+        } else { 
+            appAlert(data.error || "Registration Failed", "Error", true); 
+        }
+    } catch(e) { 
+        appAlert(e.message || "Network error", "Connection Failed", true); 
+    } finally {
+        btn.innerText = "Register";
+        btn.disabled = false;
+    }
 }
 
 async function handleLogin() {
-    const email = document.getElementById('loginEmail').value; const pass = document.getElementById('loginPassword').value;
+    const email = document.getElementById('loginEmail').value; 
+    const pass = document.getElementById('loginPassword').value;
     if(!email || !pass) return appAlert("Enter email and password.", "Error", true);
-    document.getElementById('loginBtn').innerText = "Authenticating...";
+    
+    const btn = document.getElementById('loginBtn');
+    btn.innerText = "Authenticating...";
+    btn.disabled = true;
+
     try {
         const res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email, password: pass}) });
-        const data = await res.json();
-        if (data.success) { localStorage.setItem('sharepoint_token', data.token); currentToken = data.token; loadDashboard(); } else appAlert(data.error, "Error", true);
-    } catch(e) { appAlert("Network error", "Error", true); }
-    document.getElementById('loginBtn').innerText = "Login";
+        let data;
+        try { data = await res.json(); } catch(err) { throw new Error("Server returned an invalid response."); }
+        
+        if (data.success) { 
+            localStorage.setItem('sharepoint_token', data.token); 
+            currentToken = data.token; 
+            await loadDashboard(); 
+        } else { 
+            appAlert(data.error || "Login Failed", "Error", true); 
+        }
+    } catch(e) { 
+        appAlert(e.message || "Network error", "Connection Failed", true); 
+    } finally {
+        btn.innerText = "Login";
+        btn.disabled = false;
+    }
+}
+
+async function handleForgotPassword() {
+    const email = document.getElementById('forgotEmail').value;
+    if(!email) return appAlert("Enter your email address.", "Error", true);
+    
+    const btn = document.getElementById('forgotBtn');
+    btn.innerText = "Processing...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/forgot-password', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email}) });
+        let data;
+        try { data = await res.json(); } catch(err) { throw new Error("Server returned an invalid response."); }
+        
+        if (data.success) { 
+            appAlert(`Password reset!\n\nYour temporary password is:\n\n ${data.tempPass}`, "Success"); 
+            toggleAuth('login'); 
+            document.getElementById('forgotEmail').value = "";
+        } else { 
+            appAlert(data.error || "Reset Failed", "Error", true); 
+        }
+    } catch(e) { 
+        appAlert(e.message || "Network error", "Error", true); 
+    } finally {
+        btn.innerText = "Generate Password";
+        btn.disabled = false;
+    }
 }
 
 function logout() { localStorage.removeItem('sharepoint_token'); window.location.reload(); }
@@ -64,16 +135,17 @@ function logout() { localStorage.removeItem('sharepoint_token'); window.location
 async function loadDashboard() {
     try {
         const res = await fetch('/api/dashboard', { headers: { 'Authorization': `Bearer ${currentToken}` } });
+        if (!res.ok) throw new Error("Server error");
         const data = await res.json();
-        if (data.success) setupDashboard(data); else logout();
-    } catch (e) { console.log("Error loading dash"); }
+        if (data.success) { setupDashboard(data); } 
+        else { localStorage.removeItem('sharepoint_token'); window.location.reload(); }
+    } catch (e) { console.log("Failed to load dashboard data"); }
 }
 
 function setupDashboard(data) {
     currentUser = data.user;
     document.getElementById('authContainer').classList.add('hidden');
     
-    // COMPULSORY DP CHECK
     if (!currentUser.profilePicture || currentUser.profilePicture === '') {
         document.getElementById('mainApp').classList.add('hidden');
         document.getElementById('setupView').classList.remove('hidden');
@@ -84,13 +156,11 @@ function setupDashboard(data) {
     document.getElementById('setupView').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     
-    // Set UI Data
     document.getElementById('userNameDisplay').innerText = currentUser.fullName || currentUser.username;
     document.getElementById('walletBalanceDisplay').innerText = `₦${currentUser.walletBalance.toLocaleString()}`;
     document.getElementById('withdrawableBalanceDisplay').innerText = `₦${currentUser.withdrawableBalance.toLocaleString()}`;
-    document.getElementById('dashboardRefDisplay').innerText = data.referralCount;
+    document.getElementById('dashboardRefDisplay').innerText = data.referralCount || "0";
     
-    // Display DPs
     const dpHtml = `<img src="${currentUser.profilePicture}" class="dp-image">`;
     document.getElementById('dashDpContainer').innerHTML = dpHtml;
     document.getElementById('profileDpContainer').innerHTML = dpHtml;
@@ -98,7 +168,6 @@ function setupDashboard(data) {
     document.getElementById('profileName').innerText = currentUser.fullName || currentUser.username;
     document.getElementById('profileEmail').innerText = currentUser.email;
 
-    // PIN & Admin Check
     const pinTag = document.getElementById('pinStatus');
     if (currentUser.hasPin) { pinTag.className = "text-[9px] bg-[#00FF87]/20 text-neon px-2 py-1 rounded mr-2 uppercase"; pinTag.innerText = "Secured"; } 
     else { pinTag.className = "text-[9px] bg-red-500/20 text-red-500 px-2 py-1 rounded mr-2 uppercase"; pinTag.innerText = "Not Set"; }
@@ -108,9 +177,6 @@ function setupDashboard(data) {
     renderBanks(); renderPlans(data.plans); renderPortfolio(data.investments); renderUserTickets(data.supportTickets);
 }
 
-// ==========================================
-// COMPULSORY PROFILE & BANKS
-// ==========================================
 function previewDp(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -130,19 +196,14 @@ async function saveInitialSetup() {
     document.getElementById('setupBtn').innerText = "Saving...";
     try {
         await fetch('/api/user/setup', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, body: JSON.stringify({ profilePicture: setupImageBase64, fullName }) });
-        appAlert("Profile setup complete!", "Success");
-        loadDashboard();
+        appAlert("Profile setup complete!", "Success"); loadDashboard();
     } catch(e) { appAlert("Error saving profile.", "Error", true); }
 }
 
 function renderBanks() {
     const list = document.getElementById('bankAccountsList');
-    if (currentUser.banks.length > 0) {
-        list.innerHTML = currentUser.banks.map(b => `
-            <div class="card p-4 rounded-xl border-l-4 border-l-neon mb-2">
-                <p class="font-bold text-white text-sm">${b.bankName}</p>
-                <p class="text-xs text-[#4A7A66]">${b.accountNumber} - ${b.accountName}</p>
-            </div>`).join('');
+    if (currentUser.banks && currentUser.banks.length > 0) {
+        list.innerHTML = currentUser.banks.map(b => `<div class="card p-4 rounded-xl border-l-4 border-l-neon mb-2"><p class="font-bold text-white text-sm">${b.bankName}</p><p class="text-xs text-[#4A7A66]">${b.accountNumber} - ${b.accountName}</p></div>`).join('');
     } else { list.innerHTML = `<p class="text-[#4A7A66] text-sm">No banks added yet.</p>`; }
 }
 
@@ -160,9 +221,6 @@ async function addBankAccount() {
     document.getElementById('addBankBtn').innerText = "Save Bank";
 }
 
-// ==========================================
-// WITHDRAWAL FLOW
-// ==========================================
 function withdrawCheck() {
     if (!currentUser.banks || currentUser.banks.length === 0) {
         appConfirm("You must add a Bank Account before withdrawing. Add one now?", () => { switchTab('banks'); }, "Bank Required");
@@ -191,9 +249,6 @@ async function processWithdrawal() {
     document.getElementById('withdrawBtn').innerText = "Request Payout";
 }
 
-// ==========================================
-// GENERAL USER FUNCTIONS
-// ==========================================
 async function fundWallet() {
     const amount = Number(document.getElementById('depositAmount').value);
     if (!amount || amount < 100) return appAlert("Min deposit is ₦100.", "Error", true);
@@ -222,14 +277,10 @@ async function loadTransactions() {
     try {
         const res = await fetch('/api/user/transactions', { headers: { 'Authorization': `Bearer ${currentToken}` } });
         const data = await res.json();
-        if (data.transactions.length > 0) {
+        if (data.transactions && data.transactions.length > 0) {
             document.getElementById('txList').innerHTML = data.transactions.map(tx => {
                 const isC = tx.type === 'credit';
-                return `<div class="card p-4 rounded-xl flex justify-between items-center shadow-md">
-                    <div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-[#143D2F] flex items-center justify-center"><i class="fa-solid ${isC ? 'fa-arrow-down text-neon' : 'fa-arrow-up text-red-500'}"></i></div>
-                    <div><p class="text-sm font-bold text-white">${tx.title}</p><p class="text-[10px] text-[#4A7A66] uppercase">${new Date(tx.date).toLocaleDateString()} - ${tx.status}</p></div></div>
-                    <p class="font-black ${isC ? 'text-neon' : 'text-red-500'}">${isC ? '+' : '-'}₦${tx.amount.toLocaleString()}</p>
-                </div>`;
+                return `<div class="card p-4 rounded-xl flex justify-between items-center shadow-md"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-[#143D2F] flex items-center justify-center"><i class="fa-solid ${isC ? 'fa-arrow-down text-neon' : 'fa-arrow-up text-red-500'}"></i></div><div><p class="text-sm font-bold text-white">${tx.title}</p><p class="text-[10px] text-[#4A7A66] uppercase">${new Date(tx.date).toLocaleDateString()} - ${tx.status}</p></div></div><p class="font-black ${isC ? 'text-neon' : 'text-red-500'}">${isC ? '+' : '-'}₦${tx.amount.toLocaleString()}</p></div>`;
             }).join('');
         } else { document.getElementById('txList').innerHTML = `<p class="text-center text-[#4A7A66] mt-10">No transactions.</p>`; }
     } catch(e) {}
@@ -254,52 +305,27 @@ async function sendSupportMessage() {
 }
 
 function renderUserTickets(tickets) {
+    const list = document.getElementById('userTicketsList');
+    if (!list) return;
     if(tickets && tickets.length > 0) {
-        document.getElementById('userTicketsList').innerHTML = tickets.map(t => `
-            <div class="card p-4 rounded-xl mb-2 border ${t.status==='replied' ? 'border-neon' : 'border-[#143D2F]'}">
-                <p class="text-sm text-white mb-2"><b>You:</b> ${t.message}</p>
-                ${t.reply ? `<div class="bg-[#143D2F]/50 p-3 rounded-lg"><p class="text-xs text-neon mb-1 font-bold">Admin Reply:</p><p class="text-sm text-gray-300">${t.reply}</p></div>` : `<p class="text-xs text-[#4A7A66] italic">Awaiting reply...</p>`}
-            </div>
-        `).join('');
-    }
+        list.innerHTML = tickets.map(t => `<div class="card p-4 rounded-xl mb-2 border ${t.status==='replied' ? 'border-neon' : 'border-[#143D2F]'}"><p class="text-sm text-white mb-2"><b>You:</b> ${t.message}</p>${t.reply ? `<div class="bg-[#143D2F]/50 p-3 rounded-lg"><p class="text-xs text-neon mb-1 font-bold">Admin Reply:</p><p class="text-sm text-gray-300">${t.reply}</p></div>` : `<p class="text-xs text-[#4A7A66] italic">Awaiting reply...</p>`}</div>`).join('');
+    } else { list.innerHTML = `<p class="text-center text-[#4A7A66]">No messages.</p>`; }
 }
 
-// ==========================================
-// ADMIN DASHBOARD ENGINE
-// ==========================================
 async function loadAdminDashboard() {
     switchTab('admin');
     try {
         const res = await fetch('/api/admin/data', { headers: { 'Authorization': `Bearer ${currentToken}` } });
         adminGlobalData = await res.json();
-        
-        // Populate Users Dropdown
         document.getElementById('topupUserSelect').innerHTML = adminGlobalData.users.map(u => `<option value="${u._id}">${u.username} (Bal: ₦${u.walletBalance})</option>`).join('');
-        
-        // Populate Users List
-        document.getElementById('adminUsersList').innerHTML = adminGlobalData.users.map(u => `
-            <div class="bg-[#0C221A] p-3 rounded-lg border border-[#143D2F] flex justify-between items-center">
-                <div><p class="text-sm text-white font-bold">${u.username}</p><p class="text-[10px] text-[#4A7A66]">${u.email}</p></div>
-                <div class="text-right"><p class="text-xs text-neon">Bal: ₦${u.walletBalance}</p><p class="text-xs text-white">Earned: ₦${u.withdrawableBalance}</p></div>
-            </div>`).join('');
-
-        // Populate Support Tickets
-        document.getElementById('adminSupportList').innerHTML = adminGlobalData.tickets.map(t => `
-            <div class="card p-4 rounded-xl border border-red-500/30">
-                <p class="text-xs text-neon font-bold mb-1">From: ${t.userName}</p>
-                <p class="text-sm text-white mb-3">"${t.message}"</p>
-                <textarea id="reply_${t._id}" class="w-full input-box rounded-lg p-2 text-xs mb-2 h-16" placeholder="Type reply..."></textarea>
-                <button onclick="adminReplySupport('${t._id}')" class="bg-red-500 text-white px-4 py-2 rounded-full text-xs font-bold">Send Reply</button>
-            </div>`).join('');
-
+        document.getElementById('adminUsersList').innerHTML = adminGlobalData.users.map(u => `<div class="bg-[#0C221A] p-3 rounded-lg border border-[#143D2F] flex justify-between items-center"><div><p class="text-sm text-white font-bold">${u.username}</p><p class="text-[10px] text-[#4A7A66]">${u.email}</p></div><div class="text-right"><p class="text-xs text-neon">Bal: ₦${u.walletBalance}</p><p class="text-xs text-white">Earned: ₦${u.withdrawableBalance}</p></div></div>`).join('');
+        document.getElementById('adminSupportList').innerHTML = adminGlobalData.tickets.map(t => `<div class="card p-4 rounded-xl border border-red-500/30"><p class="text-xs text-neon font-bold mb-1">From: ${t.userName}</p><p class="text-sm text-white mb-3">"${t.message}"</p><textarea id="reply_${t._id}" class="w-full input-box rounded-lg p-2 text-xs mb-2 h-16" placeholder="Type reply..."></textarea><button onclick="adminReplySupport('${t._id}')" class="bg-red-500 text-white px-4 py-2 rounded-full text-xs font-bold">Send Reply</button></div>`).join('');
     } catch(e) { appAlert("Admin access denied.", "Error", true); }
 }
 
 async function adminTopUpUser() {
-    const userId = document.getElementById('topupUserSelect').value;
-    const amount = Number(document.getElementById('topupAmount').value);
+    const userId = document.getElementById('topupUserSelect').value; const amount = Number(document.getElementById('topupAmount').value);
     if (!amount) return;
-    
     appConfirm(`Top up this user with ₦${amount.toLocaleString()}?`, async () => {
         await fetch('/api/admin/user/topup', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, body: JSON.stringify({ userId, amount }) });
         appAlert("Top-Up Successful", "Admin"); document.getElementById('topupAmount').value = ""; loadAdminDashboard();
@@ -309,19 +335,4 @@ async function adminTopUpUser() {
 async function adminReplySupport(ticketId) {
     const replyMessage = document.getElementById(`reply_${ticketId}`).value;
     if(!replyMessage) return;
-    await fetch('/api/admin/support/reply', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, body: JSON.stringify({ ticketId, replyMessage }) });
-    appAlert("Reply sent.", "Admin"); loadAdminDashboard();
-}
-
-async function adminAddPlan() {
-    const name = document.getElementById('newPlanName').value; const cost = Number(document.getElementById('newPlanCost').value);
-    const dailyReturn = Number(document.getElementById('newPlanDaily').value); const duration = Number(document.getElementById('newPlanDuration').value);
-    if(!name || !cost) return;
-    await fetch('/api/admin/plan/add', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, body: JSON.stringify({ name, cost, dailyReturn, duration, icon: 'fa-gem' }) });
-    appAlert("Plan Published!", "Admin"); loadDashboard();
-}
-
-async function adminDeletePlan(planId) {
-    appConfirm("Delete this plan forever?", async () => {
-        await fetch('/api/admin/plan/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, body: JSON.stringify({ planId }) });
-        appAlert("Plan 
+    await fetch
