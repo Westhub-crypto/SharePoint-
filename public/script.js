@@ -24,11 +24,9 @@ const SUPPORT_BOT_LINK = "https://t.me/SharePoint_support_system_bot";
 // 1. INSTANT BOOT SEQUENCE
 // ==========================================
 window.onload = function() {
-    // Show Dashboard instantly to prevent getting stuck on blank page
     switchTab('dashboard');
     document.getElementById('userNameDisplay').innerText = USER_NAME;
 
-    // Admin Tab Visibility
     if (USER_ID !== ADMIN_ID) {
         var adminView = document.getElementById('adminView');
         var tabAdmin = document.getElementById('tab-admin');
@@ -50,9 +48,6 @@ window.onload = function() {
     loadDashboard();
 };
 
-// ==========================================
-// 2. SUPPORT BOT REDIRECT
-// ==========================================
 function openSupportBot() {
     tg.HapticFeedback.impactOccurred('medium');
     tg.openTelegramLink(SUPPORT_BOT_LINK);
@@ -66,15 +61,12 @@ async function loadDashboard() {
     
     try {
         const res = await fetch('/api/login', {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tgId: USER_ID, name: USER_NAME, referredBy: REFERRED_BY })
         });
         
         tg.MainButton.hide();
-
         if (!res.ok) return tg.showAlert("Server is offline. Try again.");
-
         const data = await res.json();
 
         if (data.error === "Banned") {
@@ -91,54 +83,67 @@ async function loadDashboard() {
         const plansList = document.getElementById('dynamicPlansList');
         if (data.plans && data.plans.length > 0) {
             plansList.innerHTML = data.plans.map(plan => {
-                const totalEarn = plan.dailyReturn * plan.duration;
+                // THE NEW EARNINGS MATH EXPLANATION
+                const totalProfit = plan.dailyReturn * plan.duration;
+                const totalReturn = plan.cost + totalProfit; // Capital + Profit
 
                 return `
-                <div class="card rounded-[24px] p-6 mb-5 hover:border-[#D4AF37] transition shadow-md">
+                <div class="card rounded-[24px] p-6 mb-5 hover:border-[#00FF87] transition shadow-lg">
                     <div class="flex justify-between items-center mb-5">
                         <div class="flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center border border-[#D4AF37]/30 shadow-inner">
-                                <i class="fa-solid ${plan.icon} text-[#D4AF37] text-2xl drop-shadow-sm"></i>
+                            <div class="w-12 h-12 rounded-xl bg-[#00FF87]/10 flex items-center justify-center border border-[#00FF87]/30">
+                                <i class="fa-solid ${plan.icon} text-neon text-xl drop-shadow-sm"></i>
                             </div>
                             <div>
-                                <h4 class="text-xl font-black text-gray-900">${plan.name}</h4>
-                                <p class="text-xs text-[#D4AF37] font-bold tracking-widest uppercase">Cost: ₦${plan.cost.toLocaleString()}</p>
+                                <h4 class="text-xl font-black text-white">${plan.name}</h4>
+                                <p class="text-[11px] text-neon font-bold tracking-widest uppercase">Cost: ₦${plan.cost.toLocaleString()}</p>
                             </div>
                         </div>
-                        <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="btn-gold px-5 py-2.5 rounded-xl text-sm font-extrabold shadow-lg">Buy</button>
                     </div>
                     
-                    <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 border border-gray-200">
-                        <div class="flex justify-between border-b border-gray-200 pb-2 mb-2">
-                            <span class="font-semibold text-gray-500">Daily Return:</span> 
-                            <span class="font-bold text-gray-900">₦${plan.dailyReturn.toLocaleString()}</span>
+                    <div class="bg-[#061410] rounded-xl p-4 text-sm text-gray-300 border border-[#143D2F] mb-5">
+                        <p class="text-[10px] text-neon font-bold mb-3 uppercase tracking-widest">Earning Structure</p>
+                        
+                        <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2">
+                            <span class="font-medium text-[#4A7A66]">Daily Earning:</span> 
+                            <span class="font-bold text-white">₦${plan.dailyReturn.toLocaleString()}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2">
+                            <span class="font-medium text-[#4A7A66]">Duration:</span> 
+                            <span class="font-bold text-white">${plan.duration} Days</span>
+                        </div>
+                        <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2">
+                            <span class="font-medium text-[#4A7A66]">Total Profit:</span> 
+                            <span class="font-bold text-white">₦${totalProfit.toLocaleString()}</span>
                         </div>
                         <div class="flex justify-between pt-1">
-                            <span class="font-semibold text-gray-500">Total Yield (${plan.duration} Days):</span> 
-                            <span class="font-extrabold text-gold">₦${totalEarn.toLocaleString()}</span>
+                            <span class="font-bold text-neon">Final Return (Capital + Profit):</span> 
+                            <span class="font-black text-neon text-base">₦${totalReturn.toLocaleString()}</span>
                         </div>
                     </div>
+
+                    <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="w-full btn-neon py-3.5 rounded-full text-sm font-black shadow-lg uppercase tracking-wide">Purchase Plan</button>
                 </div>`
             }).join('');
         } else {
-            plansList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-gray-300"><p class="text-gray-500 font-bold text-sm">No plans available right now.</p></div>`;
+            plansList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-[#143D2F]"><p class="text-[#4A7A66] font-bold text-sm">No plans available right now.</p></div>`;
         }
 
         const invList = document.getElementById('investmentsList');
         if (data.investments && data.investments.length > 0) {
             invList.innerHTML = data.investments.map(inv => `
-                <div class="card rounded-2xl p-5 flex justify-between items-center border-l-4 border-l-gold shadow-sm">
+                <div class="card rounded-2xl p-5 flex justify-between items-center border-l-4 border-l-[#00FF87]">
                     <div>
-                        <h4 class="font-extrabold text-gray-900 text-base">${inv.shareName}</h4>
-                        <p class="text-xs text-[#D4AF37] font-bold mt-1">+₦${inv.dailyReturn.toLocaleString()} Daily</p>
+                        <h4 class="font-extrabold text-white text-base">${inv.shareName}</h4>
+                        <p class="text-xs text-neon font-bold mt-1">+₦${inv.dailyReturn.toLocaleString()} Daily</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-3xl font-black text-gray-900">${inv.daysLeft}</p>
-                        <p class="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Days Left</p>
+                        <p class="text-3xl font-black text-white">${inv.daysLeft}</p>
+                        <p class="text-[9px] text-[#4A7A66] uppercase tracking-widest font-bold">Days Left</p>
                     </div>
                 </div>
             `).join('');
-        } else { invList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-gray-300"><p class="text-gray-500 font-bold text-sm">No active investments.</p></div>`; }
+        } else { invList.innerHTML = `<div class="card p-8 text-center rounded-2xl border-dashed border-2 border-[#143D2F]"><p class="text-[#4A7A66] font-bold text-sm">No active investments.</p></div>`; }
 
         if(USER_ID === ADMIN_ID) loadAdminStats();
 
@@ -167,24 +172,24 @@ async function loadAdminStats() {
         const data = await res.json();
 
         document.getElementById('adminWithdrawalList').innerHTML = data.pendingWithdrawals.map(w => `
-            <div class="card p-5 rounded-2xl border-l-4 border-l-red-500 shadow-sm">
-                <p class="text-xs text-gray-400 font-bold">ID: ${w.refId}</p>
-                <p class="font-extrabold text-gray-900 mt-1">${w.userName} requested <span class="text-emerald-500">₦${w.amount.toLocaleString()}</span></p>
-                <p class="text-sm text-gray-600 mb-3">${w.bankName} - ${w.accountNumber}</p>
+            <div class="card p-5 rounded-2xl border-l-4 border-l-neon shadow-sm">
+                <p class="text-xs text-[#4A7A66] font-bold">ID: ${w.refId}</p>
+                <p class="font-extrabold text-white mt-1">${w.userName} requested <span class="text-neon">₦${w.amount.toLocaleString()}</span></p>
+                <p class="text-sm text-gray-300 mb-3">${w.bankName} - ${w.accountNumber}</p>
                 <div class="flex gap-3">
-                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-bold shadow-md">Approve</button>
-                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-xs font-bold">Reject</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'approve')" class="flex-1 bg-neon text-[#061410] py-2.5 rounded-full text-xs font-black shadow-md">Approve</button>
+                    <button onclick="resolveWithdrawal('${w.refId}', 'reject')" class="flex-1 bg-transparent border border-[#143D2F] text-white py-2.5 rounded-full text-xs font-bold">Reject</button>
                 </div>
             </div>
-        `).join('') || `<p class="text-gray-400 text-sm font-medium">No pending requests.</p>`;
+        `).join('') || `<p class="text-[#4A7A66] text-sm font-medium">No pending requests.</p>`;
 
         document.getElementById('adminUsersList').innerHTML = data.users.map(u => `
             <div class="card p-4 rounded-xl flex justify-between items-center mb-3">
                 <div>
-                    <p class="font-bold text-gray-900 text-sm">${u.username || 'Unknown'}</p>
-                    <p class="text-[10px] text-gray-500 font-bold uppercase mt-1">Bal: ₦${u.walletBalance.toLocaleString()} | Earn: ₦${u.withdrawableBalance.toLocaleString()}</p>
+                    <p class="font-bold text-white text-sm">${u.username || 'Unknown'}</p>
+                    <p class="text-[10px] text-[#4A7A66] font-bold uppercase mt-1">Bal: ₦${u.walletBalance.toLocaleString()} | Earn: ₦${u.withdrawableBalance.toLocaleString()}</p>
                 </div>
-                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500 border border-red-200'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
+                <button onclick="toggleBan('${u.tgId}', ${!u.isBanned})" class="px-4 py-2 rounded-lg text-xs font-bold ${u.isBanned ? 'bg-transparent border border-[#143D2F] text-[#4A7A66]' : 'bg-red-500/10 text-red-500 border border-red-500/30'}">${u.isBanned ? 'Unban' : 'Ban'}</button>
             </div>
         `).join('');
 
@@ -207,14 +212,10 @@ async function adminAddPlan() {
         body: JSON.stringify({ name: name, cost: cost, dailyReturn: dailyReturn, duration: duration, icon: icon })
     });
     
-    tg.MainButton.hide(); 
-    tg.showAlert("Plan Published Successfully!"); 
+    tg.MainButton.hide(); tg.showAlert("Plan Published Successfully!"); 
     
-    document.getElementById('newPlanName').value = "";
-    document.getElementById('newPlanCost').value = "";
-    document.getElementById('newPlanDaily').value = "";
-    document.getElementById('newPlanDuration').value = "";
-    
+    document.getElementById('newPlanName').value = ""; document.getElementById('newPlanCost').value = "";
+    document.getElementById('newPlanDaily').value = ""; document.getElementById('newPlanDuration').value = "";
     loadDashboard();
 }
 
@@ -258,8 +259,7 @@ function buyDynamicShare(planId, planName, cost) {
             if (result.success) { 
                 tg.HapticFeedback.notificationOccurred('success');
                 tg.showAlert("✅ Success! Asset purchased."); 
-                loadDashboard(); 
-                switchTab('portfolio'); 
+                loadDashboard(); switchTab('portfolio'); 
             }
             else { tg.showAlert(`❌ ${result.error}`); }
         } catch (e) { tg.MainButton.hide(); tg.showAlert("Transaction failed."); }
@@ -277,14 +277,9 @@ function switchTab(tabId) {
         if(viewEl) viewEl.classList.add('hidden');
         
         if(tabEl) {
-            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-300 hover:text-red-500 w-1/5 transition";
-            else tabEl.className = "flex flex-col items-center text-gray-400 hover:text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+            if (ids[i] === 'admin') tabEl.className = "flex flex-col items-center text-red-500/50 hover:text-red-500 w-1/5 transition";
+            else tabEl.className = "flex flex-col items-center text-[#4A7A66] hover:text-[#00FF87] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
             
-            var icon = tabEl.querySelector('i');
-            if(icon) {
-                icon.classList.remove('drop-shadow-md', 'text-2xl');
-                icon.classList.add('text-xl');
-            }
             var text = tabEl.querySelector('span');
             if(text) { text.classList.remove('font-extrabold'); text.classList.add('font-bold'); }
         }
@@ -295,14 +290,9 @@ function switchTab(tabId) {
 
     var selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
-        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-600 w-1/5 transition";
-        else selectedTab.className = "flex flex-col items-center text-[#D4AF37] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
+        if (tabId === 'admin') selectedTab.className = "flex flex-col items-center text-red-500 w-1/5 transition";
+        else selectedTab.className = "flex flex-col items-center text-[#00FF87] " + (USER_ID === ADMIN_ID ? 'w-1/5' : 'w-1/4') + " transition";
         
-        var iconActive = selectedTab.querySelector('i');
-        if(iconActive) {
-            iconActive.classList.add('drop-shadow-md', 'text-2xl');
-            iconActive.classList.remove('text-xl');
-        }
         var textActive = selectedTab.querySelector('span');
         if(textActive) { textActive.classList.remove('font-bold'); textActive.classList.add('font-extrabold'); }
     }
@@ -312,17 +302,13 @@ function switchTab(tabId) {
 function showDepositPage() {
     tg.HapticFeedback.impactOccurred('light');
     var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
-    for(var i=0; i<ids.length; i++) {
-        var el = document.getElementById(ids[i]);
-        if(el) el.classList.add('hidden');
-    }
+    for(var i=0; i<ids.length; i++) { var el = document.getElementById(ids[i]); if(el) el.classList.add('hidden'); }
     document.getElementById('depositView').classList.remove('hidden');
     tg.BackButton.show();
     tg.BackButton.onClick(() => {
         document.getElementById('depositView').classList.add('hidden');
         document.getElementById('bottomNav').classList.remove('hidden');
-        switchTab('dashboard');
-        tg.BackButton.hide();
+        switchTab('dashboard'); tg.BackButton.hide();
     });
     window.scrollTo(0,0);
 }
@@ -330,17 +316,13 @@ function showDepositPage() {
 function showWithdrawPage() {
     tg.HapticFeedback.impactOccurred('light');
     var ids = ['dashboardView', 'sharesView', 'portfolioView', 'referralView', 'adminView', 'bottomNav'];
-    for(var i=0; i<ids.length; i++) {
-        var el = document.getElementById(ids[i]);
-        if(el) el.classList.add('hidden');
-    }
+    for(var i=0; i<ids.length; i++) { var el = document.getElementById(ids[i]); if(el) el.classList.add('hidden'); }
     document.getElementById('withdrawView').classList.remove('hidden');
     tg.BackButton.show();
     tg.BackButton.onClick(() => {
         document.getElementById('withdrawView').classList.add('hidden');
         document.getElementById('bottomNav').classList.remove('hidden');
-        switchTab('dashboard');
-        tg.BackButton.hide();
+        switchTab('dashboard'); tg.BackButton.hide();
     });
     window.scrollTo(0,0);
 }
