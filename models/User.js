@@ -4,11 +4,14 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    profilePicture: { type: String, default: '' }, // Compulsory DP
     fullName: { type: String, default: '' },
-    bankName: { type: String, default: '' },
-    accountNumber: { type: String, default: '' },
-    accountName: { type: String, default: '' },
-    pin: { type: String, default: null }, // 4-digit secure PIN
+    banks: [{ 
+        bankName: String, 
+        accountNumber: String, 
+        accountName: String 
+    }],
+    pin: { type: String, default: null }, 
     walletBalance: { type: Number, default: 0 },
     withdrawableBalance: { type: Number, default: 0 },
     referredBy: { type: String, default: null },
