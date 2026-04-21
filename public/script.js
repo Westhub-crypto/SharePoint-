@@ -6,7 +6,7 @@ window.onload = function() {
     const savedToken = localStorage.getItem('sharepoint_token');
     if (savedToken) {
         currentToken = savedToken;
-        loadDashboard(); // Auto-login
+        loadDashboard(); 
     }
 };
 
@@ -77,11 +77,10 @@ async function loadDashboard() {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         const data = await response.json();
-        
         if (data.success) {
             setupDashboard(data);
         } else {
-            logout(); // Token expired
+            logout(); 
         }
     } catch (e) { console.log("Silent network error on auto-login"); }
 }
@@ -92,23 +91,19 @@ function setupDashboard(data) {
     document.getElementById('authContainer').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     
-    // Populate Dashboard Data
     document.getElementById('userNameDisplay').innerText = currentUser.username;
     document.getElementById('walletBalanceDisplay').innerText = `₦${currentUser.walletBalance.toLocaleString()}`;
     document.getElementById('withdrawableBalanceDisplay').innerText = `₦${currentUser.withdrawableBalance.toLocaleString()}`;
     document.getElementById('dashboardRefDisplay').innerText = data.referralCount;
     document.getElementById('referralCountDisplay').innerText = data.referralCount;
     
-    // Populate Profile Data
     document.getElementById('profileName').innerText = currentUser.username;
     document.getElementById('profileEmail').innerText = currentUser.email || "No email on file";
     document.getElementById('profileRole').innerText = currentUser.role;
 
-    // Website Referral Link
     const refLink = window.location.origin + "?ref=" + currentUser.id;
     document.getElementById('refLinkText').innerText = refLink;
 
-    // Show Admin Button in profile if user is admin
     if (currentUser.role === 'admin') {
         document.getElementById('profileAdminBtn').classList.remove('hidden');
         document.getElementById('profileAdminBtn').classList.add('flex');
@@ -118,9 +113,6 @@ function setupDashboard(data) {
     renderPortfolio(data.investments);
 }
 
-// ==========================================
-// RENDER UI ELEMENTS
-// ==========================================
 function renderPlans(plans) {
     const plansList = document.getElementById('dynamicPlansList');
     if (plans && plans.length > 0) {
@@ -163,18 +155,13 @@ function renderPortfolio(investments) {
     }
 }
 
-// ==========================================
-// NAVIGATION SYSTEM
-// ==========================================
 function switchTab(tabId) {
-    // Hide all major views
     const allViews = ['dashboard', 'shares', 'portfolio', 'referral', 'profile', 'admin', 'deposit', 'withdraw', 'support'];
     allViews.forEach(id => {
         const viewEl = document.getElementById(id + 'View');
         if(viewEl) viewEl.classList.add('hidden');
     });
 
-    // Reset bottom nav colors
     const navItems = ['dashboard', 'shares', 'portfolio', 'referral', 'profile'];
     navItems.forEach(id => {
         const tabEl = document.getElementById('tab-' + id);
@@ -185,11 +172,9 @@ function switchTab(tabId) {
         }
     });
 
-    // Show the requested view
     const selectedView = document.getElementById(tabId + 'View');
     if(selectedView) selectedView.classList.remove('hidden');
 
-    // Highlight bottom nav if applicable
     const selectedTab = document.getElementById('tab-' + tabId);
     if(selectedTab) {
         selectedTab.className = "flex flex-col items-center text-[#00FF87] w-1/5 transition";
@@ -197,18 +182,16 @@ function switchTab(tabId) {
         selectedTab.querySelector('span').classList.add('font-extrabold');
     }
     
-    // Toggle bottom nav visibility (hide on sub-pages)
     if (['deposit', 'withdraw', 'admin', 'support'].includes(tabId)) {
         document.getElementById('bottomNav').classList.add('hidden');
     } else {
         document.getElementById('bottomNav').classList.remove('hidden');
     }
-
     window.scrollTo(0,0);
 }
 
 // ==========================================
-// TRANSACTION ACTIONS (FIXED FOR WEB)
+// AUTOMATED SQUADCO DEPOSIT
 // ==========================================
 function setAmount(amount) {
     document.getElementById('depositAmount').value = amount;
@@ -217,11 +200,11 @@ function setAmount(amount) {
 async function fundWallet() {
     const amount = Number(document.getElementById('depositAmount').value);
     const btn = document.getElementById('generateLinkBtn');
-    
+
     if (!amount || amount < 100) return alert("Minimum deposit is ₦100.");
-    
-    btn.innerText = "Processing..."; 
-    btn.disabled = true; 
+
+    btn.innerText = "Connecting to Gateway..."; 
+    btn.disabled = true;
 
     try {
         const response = await fetch('/api/fund', {
@@ -229,24 +212,28 @@ async function fundWallet() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
             body: JSON.stringify({ amount: amount })
         });
+        
         const result = await response.json();
         
         btn.innerText = "Proceed to Pay"; 
         btn.disabled = false;
 
         if (result.success) {
-            // Replaced tg.openLink with standard Web redirect
+            // Redirect the user to the SquadCo Checkout page securely
             window.location.href = result.checkoutUrl;
         } else { 
-            alert(`Error: ${result.error}`); 
+            alert(`❌ Error: ${result.error}`); 
         }
     } catch (error) {
         btn.innerText = "Proceed to Pay"; 
         btn.disabled = false; 
-        alert("Network error.");
+        alert("Network error. Please try again.");
     }
 }
 
+// ==========================================
+// TRANSACTIONS & UTILS
+// ==========================================
 async function processWithdrawal() {
     const amount = Number(document.getElementById('withdrawAmount').value);
     const bank = document.getElementById('withdrawBank').value;
@@ -274,19 +261,15 @@ async function processWithdrawal() {
         if (result.success) {
             alert("✅ Withdrawal request sent successfully!");
             switchTab('dashboard'); 
-            loadDashboard(); // refresh balances
-        } else { 
-            alert(`❌ Error: ${result.error}`); 
-        }
+            loadDashboard();
+        } else { alert(`❌ Error: ${result.error}`); }
     } catch (e) { 
-        btn.disabled = false; 
-        btn.innerText = "Request Payout";
+        btn.disabled = false; btn.innerText = "Request Payout";
         alert("Network error."); 
     }
 }
 
 async function buyDynamicShare(planId, planName, cost) {
-    // Replaced tg.showConfirm with standard Web confirm box
     const confirmed = confirm(`Are you sure you want to purchase ${planName} for ₦${cost.toLocaleString()}?`);
     if (!confirmed) return;
 
@@ -302,40 +285,51 @@ async function buyDynamicShare(planId, planName, cost) {
             alert("✅ Success! Asset purchased. You can track it in your Portfolio."); 
             loadDashboard(); 
             switchTab('portfolio'); 
-        } else { 
-            alert(`❌ ${result.error}`); 
-        }
-    } catch (e) { 
-        alert("Transaction failed. Check your network connection."); 
-    }
+        } else { alert(`❌ ${result.error}`); }
+    } catch (e) { alert("Transaction failed. Check your network connection."); }
 }
 
-// ==========================================
-// SUPPORT SYSTEM
-// ==========================================
+async function adminAddPlan() {
+    const name = document.getElementById('newPlanName').value;
+    const icon = document.getElementById('newPlanIcon').value || "fa-gem";
+    const cost = Number(document.getElementById('newPlanCost').value);
+    const dailyReturn = Number(document.getElementById('newPlanDaily').value);
+    const duration = Number(document.getElementById('newPlanDuration').value);
+
+    if(!name || !cost || !dailyReturn || !duration) return alert("Fill all fields.");
+
+    try {
+        const res = await fetch('/api/admin/plan/add', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            body: JSON.stringify({ name, cost, dailyReturn, duration, icon })
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert("Plan Published!");
+            document.getElementById('newPlanName').value = ""; document.getElementById('newPlanCost').value = "";
+            document.getElementById('newPlanDaily').value = ""; document.getElementById('newPlanDuration').value = "";
+            loadDashboard();
+        } else { alert(result.error); }
+    } catch (e) { alert("Error adding plan."); }
+}
+
 function sendSupportMessage() {
     const msg = document.getElementById('supportMessage').value;
     const btn = document.getElementById('supportBtn');
     
-    if (!msg.trim()) return alert("Please enter a message before sending.");
+    if (!msg.trim()) return alert("Please enter a message.");
 
-    btn.innerText = "Sending...";
-    btn.disabled = true;
+    btn.innerText = "Sending..."; btn.disabled = true;
 
-    // Simulate sending for now until you create the backend route
     setTimeout(() => {
-        alert("✅ Message sent to the support team. An agent will contact you shortly.");
+        alert("✅ Message sent to the support team.");
         document.getElementById('supportMessage').value = "";
-        btn.innerText = "Send Message";
-        btn.disabled = false;
+        btn.innerText = "Send Message"; btn.disabled = false;
         switchTab('dashboard');
     }, 1500);
 }
 
-// ==========================================
-// UTILITIES
-// ==========================================
 function copyRefLink() {
     navigator.clipboard.writeText(document.getElementById('refLinkText').innerText);
-    alert("✅ Link copied to clipboard!");
-                }
+    alert("✅ Link copied!");
+}
