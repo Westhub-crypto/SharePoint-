@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
+// Models
 const User = require('./models/User'); 
 const Plan = require('./models/Plan'); 
 const Investment = require('./models/Investment'); 
@@ -22,11 +23,20 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const SQUAD_SECRET = process.env.SQUAD_SECRET;
 
 // ==========================================
-// DATABASE & AUTO-ADMIN
+// DATABASE & AUTO-ADMIN (WITH CRASH FIX)
 // ==========================================
 mongoose.connect(MONGODB_URI)
     .then(async () => {
         console.log('✅ MongoDB Connected');
+
+        // 🚨 FIX FOR THE DUPLICATE TELEGRAM ID ERROR 🚨
+        try {
+            await mongoose.connection.collection('users').dropIndex('tgId_1');
+            console.log('✅ Old Telegram Index cleared successfully.');
+        } catch (e) {
+            // Silently ignore if the index is already deleted
+        }
+
         // Auto-Create Master Admin if it doesn't exist
         const adminExists = await User.findOne({ email: 'admin@sharepoint.com' });
         if (!adminExists) {
@@ -38,6 +48,7 @@ mongoose.connect(MONGODB_URI)
     })
     .catch(err => console.log('❌ DB Error: ', err));
 
+// Middleware
 const authenticateToken = (req, res, next) => {
     const token = req.headers['authorization']?.split(' ')[1];
     if (!token) return res.status(401).json({ success: false, error: 'Unauthorized.' });
@@ -76,6 +87,21 @@ app.post('/api/login', async (req, res) => {
         const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ success: true, token });
     } catch (err) { res.status(500).json({ success: false, error: "Server error" }); }
+});
+
+app.post('/api/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ success: false, error: "No account found with that email." });
+        
+        const tempPassword = Math.random().toString(36).slice(-8);
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(tempPassword, salt);
+        await user.save();
+        
+        res.json({ success: true, tempPassword: tempPassword });
+    } catch (err) { res.status(500).json({ success: false, error: "Server error during reset." }); }
 });
 
 app.get('/api/dashboard', authenticateToken, async (req, res) => {
