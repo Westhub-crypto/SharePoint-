@@ -15,19 +15,28 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static('public')); 
 
-const JWT_SECRET = process.env.JWT_SECRET || "sharepoint_secure_key_123";
-const SQUAD_SECRET = process.env.SQUAD_SECRET || "YOUR_SQUADCO_SECRET_KEY";
+// ==========================================
+// SECURE ENVIRONMENT VARIABLES
+// ==========================================
+// The server will ONLY pull these from Render for maximum security
+const JWT_SECRET = process.env.JWT_SECRET;
+const SQUAD_SECRET = process.env.SQUAD_SECRET_KEY;
+const MONGODB_URI = process.env.MONGODB_URI;
+
+// Safety Checks: Warns the console if you forgot to add them in Render
+if (!MONGODB_URI) console.error("🚨 FATAL ERROR: MONGODB_URI is missing in Render environment!");
+if (!JWT_SECRET) console.error("🚨 FATAL ERROR: JWT_SECRET is missing in Render environment!");
+if (!SQUAD_SECRET) console.warn("⚠️ WARNING: SQUAD_SECRET is missing. Deposits will fail.");
 
 // ==========================================
 // DATABASE CONNECTION
 // ==========================================
-const MONGODB_URI = process.env.MONGODB_URI || "YOUR_MONGODB_LINK_HERE";
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('✅ MongoDB Connected Successfully'))
     .catch(err => console.log('❌ MongoDB Connection Error: ', err));
 
 // ==========================================
-// SECURITY MIDDLEWARE (Checks if user is logged in)
+// SECURITY MIDDLEWARE
 // ==========================================
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -89,7 +98,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 2. TRANSACTION ROUTES (The Missing Engine)
+// 2. TRANSACTION ROUTES
 // ==========================================
 
 // Deposit via SquadCo
@@ -97,6 +106,8 @@ app.post('/api/fund', authenticateToken, async (req, res) => {
     try {
         const { amount } = req.body;
         const user = await User.findById(req.user.id);
+
+        if (!SQUAD_SECRET) return res.status(500).json({ success: false, error: "Payment gateway is not configured." });
 
         // Call SquadCo API
         const response = await fetch('https://api-d.squadco.com/transaction/initiate', {
