@@ -8,151 +8,185 @@ const cors = require('cors');
 const User = require('./models/User'); 
 const Plan = require('./models/Plan'); 
 const Investment = require('./models/Investment'); 
+const Withdrawal = require('./models/Withdrawal'); 
 
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(express.static('public')); // This serves your index.html file
+app.use(express.static('public')); 
 
 const JWT_SECRET = process.env.JWT_SECRET || "sharepoint_secure_key_123";
+const SQUAD_SECRET = process.env.SQUAD_SECRET || "YOUR_SQUADCO_SECRET_KEY";
 
 // ==========================================
-// DATABASE CONNECTION 
+// DATABASE CONNECTION
 // ==========================================
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://Westpablo:Westpablo0917@cluster0.6prwiav.mongodb.net/?appName=Cluster0";
-
+const MONGODB_URI = process.env.MONGODB_URI || "YOUR_MONGODB_LINK_HERE";
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('✅ MongoDB Connected Successfully'))
     .catch(err => console.log('❌ MongoDB Connection Error: ', err));
 
 // ==========================================
-// 1. REGISTRATION ROUTE
+// SECURITY MIDDLEWARE (Checks if user is logged in)
+// ==========================================
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized. Please log in.' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ success: false, error: 'Session expired. Please log in again.' });
+        req.user = user;
+        next();
+    });
+};
+
+// ==========================================
+// 1. AUTHENTICATION ROUTES
 // ==========================================
 app.post('/api/register', async (req, res) => {
     try {
         const { username, email, password, ref } = req.body;
-        
-        // Check if the email is already in the database
         const existing = await User.findOne({ email });
-        if (existing) {
-            return res.status(400).json({ success: false, error: "Email already exists. Please sign in." });
-        }
+        if (existing) return res.status(400).json({ success: false, error: "Email already exists." });
 
-        // Securely hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create the new user profile
-        const newUser = new User({ 
-            username, 
-            email, 
-            password: hashedPassword, 
-            referredBy: ref 
-        });
+        const newUser = new User({ username, email, password: hashedPassword, referredBy: ref });
         await newUser.save();
 
-        // If they used a referral link, add +1 to the inviter's count
-        if (ref) {
-            await User.findOneAndUpdate({ _id: ref }, { $inc: { referralCount: 1 } });
-        }
-
-        res.json({ success: true, message: "Account created successfully" });
-    } catch (err) { 
-        console.error("Registration Error: ", err);
-        res.status(500).json({ success: false, error: "Server error during registration." }); 
-    }
+        if (ref) await User.findOneAndUpdate({ _id: ref }, { $inc: { referralCount: 1 } });
+        res.json({ success: true, message: "Account created" });
+    } catch (err) { res.status(500).json({ success: false, error: "Server error" }); }
 });
 
-// ==========================================
-// 2. LOGIN ROUTE
-// ==========================================
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        
-        // Find the user by their email
         const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ success: false, error: "Invalid email or password." });
-        }
+        
+        if (!user || user.isBanned) return res.status(400).json({ success: false, error: "Invalid credentials or banned." });
 
-        // Check if the admin banned them
-        if (user.isBanned) {
-            return res.status(403).json({ success: false, error: "Account Suspended by Admin." });
-        }
-
-        // Verify the password matches
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ success: false, error: "Invalid email or password." });
+        if (!isMatch) return res.status(400).json({ success: false, error: "Invalid credentials." });
+
+        const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+        const plans = await Plan.find({});
+        const investments = await Investment.find({ userId: user._id, status: 'active' });
+
+        res.json({ success: true, token, user: { id: user._id, username: user.username, email: user.email, walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, role: user.role }, referralCount: user.referralCount, plans, investments });
+    } catch (err) { res.status(500).json({ success: false, error: "Server error" }); }
+});
+
+app.get('/api/dashboard', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        const plans = await Plan.find({});
+        const investments = await Investment.find({ userId: user._id, status: 'active' });
+        res.json({ success: true, user: { id: user._id, username: user.username, email: user.email, walletBalance: user.walletBalance, withdrawableBalance: user.withdrawableBalance, role: user.role }, referralCount: user.referralCount, plans, investments });
+    } catch (err) { res.status(401).json({ success: false, error: "Unauthorized" }); }
+});
+
+// ==========================================
+// 2. TRANSACTION ROUTES (The Missing Engine)
+// ==========================================
+
+// Deposit via SquadCo
+app.post('/api/fund', authenticateToken, async (req, res) => {
+    try {
+        const { amount } = req.body;
+        const user = await User.findById(req.user.id);
+
+        // Call SquadCo API
+        const response = await fetch('https://api-d.squadco.com/transaction/initiate', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SQUAD_SECRET}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amount: amount * 100, // SquadCo calculates in Kobo
+                email: user.email,
+                currency: 'NGN',
+                initiate_type: 'inline',
+                transaction_ref: 'SP_' + Date.now()
+            })
+        });
+
+        const squadData = await response.json();
+        
+        if (squadData && squadData.data && squadData.data.checkout_url) {
+            res.json({ success: true, checkoutUrl: squadData.data.checkout_url });
+        } else {
+            res.status(400).json({ success: false, error: "Could not generate payment link. Check gateway." });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: "Server error during deposit." });
+    }
+});
+
+// Buy Investment Plan
+app.post('/api/buy-share', authenticateToken, async (req, res) => {
+    try {
+        const { planId } = req.body;
+        const user = await User.findById(req.user.id);
+        const plan = await Plan.findById(planId);
+
+        if (!plan) return res.status(404).json({ success: false, error: "Plan not found." });
+        if (user.walletBalance < plan.cost) return res.status(400).json({ success: false, error: "Insufficient balance. Please deposit funds." });
+
+        // Deduct money & create investment
+        user.walletBalance -= plan.cost;
+        await user.save();
+
+        const newInv = new Investment({
+            userId: user._id,
+            planId: plan._id,
+            shareName: plan.name,
+            dailyReturn: plan.dailyReturn,
+            duration: plan.duration,
+            daysLeft: plan.duration
+        });
+        await newInv.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, error: "Server error during purchase." });
+    }
+});
+
+// Withdraw Funds
+app.post('/api/withdraw', authenticateToken, async (req, res) => {
+    try {
+        const { amount, bankName, accNo, accName } = req.body;
+        const user = await User.findById(req.user.id);
+
+        if (user.withdrawableBalance < amount) {
+            return res.status(400).json({ success: false, error: "Insufficient earnings balance." });
         }
 
-        // Generate a secure session token
-        const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-        
-        // Load the marketplace plans and their active investments
-        const plans = await Plan.find({});
-        const investments = await Investment.find({ userId: user._id, status: 'active' });
+        // Deduct earnings balance
+        user.withdrawableBalance -= amount;
+        await user.save();
 
-        res.json({ 
-            success: true, 
-            token, 
-            user: { 
-                id: user._id, 
-                username: user.username, 
-                walletBalance: user.walletBalance, 
-                withdrawableBalance: user.withdrawableBalance, 
-                role: user.role 
-            }, 
-            referralCount: user.referralCount, 
-            plans, 
-            investments 
+        // Send to Admin for approval
+        const withdrawalReq = new Withdrawal({
+            userId: user._id,
+            userName: user.username,
+            amount,
+            bankName,
+            accountNumber: accNo,
+            accountName: accName
         });
-    } catch (err) { 
-        console.error("Login Error: ", err);
-        res.status(500).json({ success: false, error: "Server error during login." }); 
-    }
-});
+        await withdrawalReq.save();
 
-// ==========================================
-// 3. SECURE DASHBOARD DATA (Auto-Login)
-// ==========================================
-app.get('/api/dashboard', async (req, res) => {
-    try {
-        // Verify the browser's token
-        const authHeader = req.headers.authorization;
-        if (!authHeader) return res.status(401).json({ success: false, error: "No token provided" });
-
-        const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        // Fetch fresh data
-        const user = await User.findById(decoded.id);
-        if (!user) return res.status(404).json({ success: false, error: "User not found" });
-
-        const plans = await Plan.find({});
-        const investments = await Investment.find({ userId: user._id, status: 'active' });
-
-        res.json({ 
-            success: true, 
-            user: { 
-                id: user._id, 
-                username: user.username, 
-                walletBalance: user.walletBalance, 
-                withdrawableBalance: user.withdrawableBalance, 
-                role: user.role 
-            }, 
-            referralCount: user.referralCount, 
-            plans, 
-            investments 
-        });
+        res.json({ success: true });
     } catch (err) {
-        res.status(401).json({ success: false, error: "Session expired. Please log in again." });
+        res.status(500).json({ success: false, error: "Server error during withdrawal." });
     }
 });
 
-// ==========================================
-// START SERVER
-// ==========================================
+// Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 SharePoint Premium Web running on port ${PORT}`));
