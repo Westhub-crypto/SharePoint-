@@ -9,24 +9,23 @@ const User = require('./models/User');
 const Plan = require('./models/Plan'); 
 const Investment = require('./models/Investment'); 
 const Withdrawal = require('./models/Withdrawal'); 
+const Deposit = require('./models/Deposit'); 
 
 const app = express();
-app.use(express.json());
+// INCREASED JSON LIMIT TO 10MB TO ALLOW IMAGE UPLOADS
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cors());
 app.use(express.static('public')); 
 
 // ==========================================
 // SECURE ENVIRONMENT VARIABLES
 // ==========================================
-// The server will ONLY pull these from Render for maximum security
 const JWT_SECRET = process.env.JWT_SECRET;
-const SQUAD_SECRET_KEY = process.env.SQUAD_SECRET_KEY;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// Safety Checks: Warns the console if you forgot to add them in Render
 if (!MONGODB_URI) console.error("🚨 FATAL ERROR: MONGODB_URI is missing in Render environment!");
 if (!JWT_SECRET) console.error("🚨 FATAL ERROR: JWT_SECRET is missing in Render environment!");
-if (!SQUAD_SECRET_KEY) console.warn("⚠️ WARNING: SQUAD_SECRET is missing. Deposits will fail.");
 
 // ==========================================
 // DATABASE CONNECTION
@@ -101,39 +100,24 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
 // 2. TRANSACTION ROUTES
 // ==========================================
 
-// Deposit via SquadCo
-app.post('/api/fund', authenticateToken, async (req, res) => {
+// Manual Deposit - Receipt Upload
+app.post('/api/deposit-receipt', authenticateToken, async (req, res) => {
     try {
-        const { amount } = req.body;
+        const { amount, receiptImage } = req.body;
         const user = await User.findById(req.user.id);
 
-        if (!SQUAD_SECRET) return res.status(500).json({ success: false, error: "Payment gateway is not configured." });
-
-        // Call SquadCo API
-        const response = await fetch('https://api-d.squadco.com/transaction/initiate', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${SQUAD_SECRET}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                amount: amount * 100, // SquadCo calculates in Kobo
-                email: user.email,
-                currency: 'NGN',
-                initiate_type: 'inline',
-                transaction_ref: 'SP_' + Date.now()
-            })
+        const newDeposit = new Deposit({
+            userId: user._id,
+            userName: user.username,
+            amount: amount,
+            receiptImage: receiptImage
         });
-
-        const squadData = await response.json();
         
-        if (squadData && squadData.data && squadData.data.checkout_url) {
-            res.json({ success: true, checkoutUrl: squadData.data.checkout_url });
-        } else {
-            res.status(400).json({ success: false, error: "Could not generate payment link. Check gateway." });
-        }
+        await newDeposit.save();
+        res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ success: false, error: "Server error during deposit." });
+        console.error(err);
+        res.status(500).json({ success: false, error: "Server error during upload." });
     }
 });
 
@@ -147,24 +131,17 @@ app.post('/api/buy-share', authenticateToken, async (req, res) => {
         if (!plan) return res.status(404).json({ success: false, error: "Plan not found." });
         if (user.walletBalance < plan.cost) return res.status(400).json({ success: false, error: "Insufficient balance. Please deposit funds." });
 
-        // Deduct money & create investment
         user.walletBalance -= plan.cost;
         await user.save();
 
         const newInv = new Investment({
-            userId: user._id,
-            planId: plan._id,
-            shareName: plan.name,
-            dailyReturn: plan.dailyReturn,
-            duration: plan.duration,
-            daysLeft: plan.duration
+            userId: user._id, planId: plan._id, shareName: plan.name,
+            dailyReturn: plan.dailyReturn, duration: plan.duration, daysLeft: plan.duration
         });
         await newInv.save();
 
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false, error: "Server error during purchase." });
-    }
+    } catch (err) { res.status(500).json({ success: false, error: "Server error during purchase." }); }
 });
 
 // Withdraw Funds
@@ -173,29 +150,31 @@ app.post('/api/withdraw', authenticateToken, async (req, res) => {
         const { amount, bankName, accNo, accName } = req.body;
         const user = await User.findById(req.user.id);
 
-        if (user.withdrawableBalance < amount) {
-            return res.status(400).json({ success: false, error: "Insufficient earnings balance." });
-        }
+        if (user.withdrawableBalance < amount) return res.status(400).json({ success: false, error: "Insufficient earnings balance." });
 
-        // Deduct earnings balance
         user.withdrawableBalance -= amount;
         await user.save();
 
-        // Send to Admin for approval
         const withdrawalReq = new Withdrawal({
-            userId: user._id,
-            userName: user.username,
-            amount,
-            bankName,
-            accountNumber: accNo,
-            accountName: accName
+            userId: user._id, userName: user.username, amount, bankName, accountNumber: accNo, accountName: accName
         });
         await withdrawalReq.save();
 
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ success: false, error: "Server error during withdrawal." });
-    }
+    } catch (err) { res.status(500).json({ success: false, error: "Server error during withdrawal." }); }
+});
+
+// Admin: Add New Plan
+app.post('/api/admin/plan/add', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (user.role !== 'admin') return res.status(403).json({ success: false, error: "Admin access required." });
+
+        const { name, cost, dailyReturn, duration, icon } = req.body;
+        const newPlan = new Plan({ name, cost, dailyReturn, duration, icon });
+        await newPlan.save();
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, error: "Server error" }); }
 });
 
 // Start Server
