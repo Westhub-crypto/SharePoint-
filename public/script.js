@@ -1,12 +1,9 @@
-// ==========================================
-// GLOBAL STATE
-// ==========================================
 let currentUser = null;
 let currentToken = null;
 let confirmCallback = null;
 
 // ==========================================
-// CUSTOM IN-APP MODALS (Replaces browser alerts)
+// CUSTOM IN-APP MODALS
 // ==========================================
 function appAlert(message, title = "Notification", isError = false) {
     const modal = document.getElementById('customModal');
@@ -15,11 +12,9 @@ function appAlert(message, title = "Notification", isError = false) {
     document.getElementById('modalTitle').innerText = title;
     document.getElementById('modalMessage').innerText = message;
     
-    // Change icon and color based on error or success
     document.getElementById('modalIcon').className = isError ? "fa-solid fa-triangle-exclamation text-2xl text-red-500" : "fa-solid fa-bell text-2xl text-neon";
     document.getElementById('modalIconBox').className = isError ? "w-16 h-16 mx-auto bg-red-500/10 rounded-full flex items-center justify-center mb-4" : "w-16 h-16 mx-auto bg-[#00FF87]/10 rounded-full flex items-center justify-center mb-4";
     
-    // Single OK Button
     document.getElementById('modalButtons').innerHTML = `<button onclick="closeAppModal()" class="w-full ${isError ? 'bg-red-500 text-white' : 'btn-neon'} font-black py-3.5 rounded-full text-sm shadow-lg transition active:scale-95">OK</button>`;
     
     modal.classList.add('modal-active');
@@ -34,11 +29,9 @@ function appConfirm(message, callback, title = "Please Confirm") {
     document.getElementById('modalTitle').innerText = title;
     document.getElementById('modalMessage').innerText = message;
     
-    // Question Icon
     document.getElementById('modalIcon').className = "fa-solid fa-circle-question text-2xl text-[#4A7A66]";
     document.getElementById('modalIconBox').className = "w-16 h-16 mx-auto bg-[#143D2F] rounded-full flex items-center justify-center mb-4";
     
-    // Yes / No Buttons
     document.getElementById('modalButtons').innerHTML = `
         <button onclick="closeAppModal()" class="w-1/2 bg-transparent border border-[#143D2F] text-[#4A7A66] font-bold py-3.5 rounded-full text-sm transition active:scale-95">Cancel</button>
         <button onclick="executeConfirm()" class="w-1/2 btn-neon font-black py-3.5 rounded-full text-sm shadow-lg transition active:scale-95">Yes, Proceed</button>
@@ -70,11 +63,15 @@ window.onload = function() {
 };
 
 function toggleAuth(type) {
+    document.getElementById('loginBox').classList.add('hidden');
+    document.getElementById('registerBox').classList.add('hidden');
+    document.getElementById('forgotPasswordBox').classList.add('hidden');
+
     if (type === 'register') {
-        document.getElementById('loginBox').classList.add('hidden');
         document.getElementById('registerBox').classList.remove('hidden');
+    } else if (type === 'forgot') {
+        document.getElementById('forgotPasswordBox').classList.remove('hidden');
     } else {
-        document.getElementById('registerBox').classList.add('hidden');
         document.getElementById('loginBox').classList.remove('hidden');
     }
 }
@@ -90,8 +87,7 @@ async function handleRegister() {
     document.getElementById('regBtn').innerText = "Processing...";
     try {
         const response = await fetch('/api/register', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ username: user, email: email, password: pass, ref: ref }) 
         });
         const result = await response.json();
@@ -99,12 +95,8 @@ async function handleRegister() {
         if (result.success) { 
             appAlert("Account successfully created! Please sign in.", "Welcome to SharePoint"); 
             toggleAuth('login'); 
-        } else { 
-            appAlert(result.error, "Registration Failed", true); 
-        }
-    } catch (e) { 
-        appAlert("Network error. Please check your internet connection.", "Connection Failed", true); 
-    }
+        } else { appAlert(result.error, "Registration Failed", true); }
+    } catch (e) { appAlert("Network error. Please check your internet connection.", "Connection Failed", true); }
     document.getElementById('regBtn').innerText = "Register";
 }
 
@@ -117,8 +109,7 @@ async function handleLogin() {
     document.getElementById('loginBtn').innerText = "Authenticating...";
     try {
         const response = await fetch('/api/login', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({ email: email, password: pass }) 
         });
         const data = await response.json();
@@ -127,13 +118,34 @@ async function handleLogin() {
             localStorage.setItem('sharepoint_token', data.token); 
             currentToken = data.token; 
             setupDashboard(data); 
-        } else { 
-            appAlert(data.error, "Login Failed", true); 
-        }
-    } catch (e) { 
-        appAlert("Network error. Please try again.", "Connection Failed", true); 
-    }
+        } else { appAlert(data.error, "Login Failed", true); }
+    } catch (e) { appAlert("Network error. Please try again.", "Connection Failed", true); }
     document.getElementById('loginBtn').innerText = "Login";
+}
+
+async function handleForgotPassword() {
+    const email = document.getElementById('forgotEmail').value;
+    if(!email) return appAlert("Please enter your registered email address.", "Error", true);
+    
+    document.getElementById('forgotBtn').innerText = "Processing...";
+    try {
+        const response = await fetch('/api/forgot-password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            appAlert(`Your password has been reset. \n\nYour temporary password is: \n\n ${result.tempPassword} \n\nPlease copy this, log in, and contact support if you need to change it.`, "Password Reset Success");
+            toggleAuth('login');
+            document.getElementById('forgotEmail').value = "";
+        } else {
+            appAlert(result.error, "Reset Failed", true);
+        }
+    } catch (e) {
+        appAlert("Network error. Could not connect to server.", "Error", true);
+    }
+    document.getElementById('forgotBtn').innerText = "Generate Password";
 }
 
 function logout() { 
@@ -146,65 +158,28 @@ function logout() {
 // ==========================================
 async function loadDashboard() {
     try {
-        const response = await fetch('/api/dashboard', { 
-            headers: { 'Authorization': `Bearer ${currentToken}` } 
-        });
+        const response = await fetch('/api/dashboard', { headers: { 'Authorization': `Bearer ${currentToken}` } });
         const data = await response.json();
-        
-        if (data.success) {
-            setupDashboard(data);
-        } else {
-            logout(); // Token is invalid or expired
-        }
-    } catch (e) { 
-        console.log("Silent network error on auto-login"); 
-    }
+        if (data.success) setupDashboard(data); else logout();
+    } catch (e) { console.log("Silent network error on auto-login"); }
 }
 
 function setupDashboard(data) {
     currentUser = data.user;
     
-    // Hide Auth, Show Main App
     document.getElementById('authContainer').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
     
-    // Populate Dashboard Balances
     document.getElementById('userNameDisplay').innerText = currentUser.username;
     document.getElementById('walletBalanceDisplay').innerText = `₦${currentUser.walletBalance.toLocaleString()}`;
     document.getElementById('withdrawableBalanceDisplay').innerText = `₦${currentUser.withdrawableBalance.toLocaleString()}`;
     document.getElementById('dashboardRefDisplay').innerText = data.referralCount;
     document.getElementById('referralCountDisplay').innerText = data.referralCount;
     
-    // Populate Profile Data
-    document.getElementById('profileName').innerText = currentUser.fullName || currentUser.username;
+    document.getElementById('profileName').innerText = currentUser.username;
     document.getElementById('profileEmail').innerText = currentUser.email;
     document.getElementById('refLinkText').innerText = window.location.origin + "?ref=" + currentUser.id;
 
-    // Withdraw Screen Banking Info setup
-    const bankDisplay = document.getElementById('displayBankInfo');
-    if (currentUser.bankName && currentUser.accountNumber) {
-        bankDisplay.innerHTML = `<span class="text-neon">${currentUser.bankName}</span><br/>${currentUser.accountNumber} - ${currentUser.accountName}`;
-    } else {
-        bankDisplay.innerHTML = `Not Set - Please update settings`;
-    }
-
-    // Set PIN Status Tag
-    const pinTag = document.getElementById('pinStatus');
-    if (currentUser.hasPin) {
-        pinTag.className = "text-[9px] bg-[#00FF87]/20 text-neon px-2 py-1 rounded mr-2 uppercase";
-        pinTag.innerText = "Secured";
-    } else {
-        pinTag.className = "text-[9px] bg-red-500/20 text-red-500 px-2 py-1 rounded mr-2 uppercase";
-        pinTag.innerText = "Not Set";
-    }
-
-    // Pre-fill Edit Settings form
-    document.getElementById('setFullName').value = currentUser.fullName || '';
-    document.getElementById('setBankName').value = currentUser.bankName || '';
-    document.getElementById('setAccNo').value = currentUser.accountNumber || '';
-    document.getElementById('setAccName').value = currentUser.accountName || '';
-
-    // Admin Access
     if (currentUser.role === 'admin') {
         document.getElementById('profileAdminBtn').classList.remove('hidden');
         document.getElementById('profileAdminBtn').classList.add('flex');
@@ -215,7 +190,7 @@ function setupDashboard(data) {
 }
 
 function switchTab(tabId) {
-    const allViews = ['dashboard', 'shares', 'portfolio', 'referral', 'profile', 'admin', 'deposit', 'withdraw', 'support', 'settings', 'security', 'transactions'];
+    const allViews = ['dashboard', 'shares', 'portfolio', 'referral', 'profile', 'admin', 'deposit', 'withdraw', 'support'];
     allViews.forEach(id => { 
         const viewEl = document.getElementById(id + 'View'); 
         if(viewEl) viewEl.classList.add('hidden'); 
@@ -239,194 +214,11 @@ function switchTab(tabId) {
         selectedTab.querySelector('span').className = 'font-extrabold text-[9px] uppercase tracking-wide'; 
     }
     
-    // Hide Bottom Nav on sub-pages
-    if (['deposit', 'withdraw', 'admin', 'support', 'settings', 'security', 'transactions'].includes(tabId)) {
+    if (['deposit', 'withdraw', 'admin', 'support'].includes(tabId)) {
         document.getElementById('bottomNav').classList.add('hidden');
-    } else { 
-        document.getElementById('bottomNav').classList.remove('hidden'); 
-    }
+    } else { document.getElementById('bottomNav').classList.remove('hidden'); }
     
     window.scrollTo(0,0);
-}
-
-// ==========================================
-// PROFILE & HISTORY LOGIC
-// ==========================================
-async function saveProfileDetails() {
-    const fullName = document.getElementById('setFullName').value;
-    const bankName = document.getElementById('setBankName').value;
-    const accNo = document.getElementById('setAccNo').value;
-    const accName = document.getElementById('setAccName').value;
-    
-    document.getElementById('saveProfileBtn').innerText = "Saving...";
-    try {
-        await fetch('/api/user/update', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
-            body: JSON.stringify({ fullName, bankName, accountNumber: accNo, accountName: accName }) 
-        });
-        
-        appAlert("Bank and Profile details updated successfully!", "Settings Saved");
-        loadDashboard(); // Refresh data
-        switchTab('profile');
-    } catch(e) { 
-        appAlert("Failed to update profile.", "Update Error", true); 
-    }
-    document.getElementById('saveProfileBtn').innerText = "Save Changes";
-}
-
-async function savePin() {
-    const pin = document.getElementById('newPin').value;
-    if (pin.length !== 4) return appAlert("Your PIN must be exactly 4 digits.", "Invalid PIN", true);
-    
-    document.getElementById('savePinBtn').innerText = "Securing...";
-    try {
-        await fetch('/api/user/pin', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
-            body: JSON.stringify({ pin }) 
-        });
-        
-        appAlert("Your withdrawal PIN has been securely set.", "Security Updated");
-        loadDashboard();
-        document.getElementById('newPin').value = "";
-        switchTab('profile');
-    } catch(e) { 
-        appAlert("Failed to save PIN.", "Security Error", true); 
-    }
-    document.getElementById('savePinBtn').innerText = "Secure Account";
-}
-
-async function loadTransactions() {
-    switchTab('transactions');
-    document.getElementById('txList').innerHTML = `<p class="text-center text-[#4A7A66] mt-10"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><br/>Loading history...</p>`;
-    
-    try {
-        const res = await fetch('/api/user/transactions', { 
-            headers: { 'Authorization': `Bearer ${currentToken}` } 
-        });
-        const data = await res.json();
-        
-        if (data.transactions.length > 0) {
-            document.getElementById('txList').innerHTML = data.transactions.map(tx => {
-                const isCredit = tx.type === 'credit';
-                const color = isCredit ? 'text-neon' : 'text-red-500';
-                const icon = isCredit ? 'fa-arrow-down' : 'fa-arrow-up';
-                const dateObj = new Date(tx.date);
-                
-                return `
-                <div class="card p-4 rounded-xl flex justify-between items-center shadow-md">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-[#143D2F] flex items-center justify-center border border-[#143D2F]">
-                            <i class="fa-solid ${icon} ${color}"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm font-bold text-white">${tx.title}</p>
-                            <p class="text-[10px] text-[#4A7A66] font-bold uppercase tracking-widest mt-1">${dateObj.toLocaleDateString()} - ${tx.status}</p>
-                        </div>
-                    </div>
-                    <p class="font-black ${color}">${isCredit ? '+' : '-'}₦${tx.amount.toLocaleString()}</p>
-                </div>`;
-            }).join('');
-        } else {
-            document.getElementById('txList').innerHTML = `<p class="text-center text-[#4A7A66] mt-10 font-medium">No recent transactions.</p>`;
-        }
-    } catch(e) { 
-        document.getElementById('txList').innerHTML = `<p class="text-center text-red-500 mt-10">Failed to load history.</p>`; 
-    }
-}
-
-// ==========================================
-// TRANSACTIONS (DEPOSIT, WITHDRAW, BUY)
-// ==========================================
-function setAmount(amount) { 
-    document.getElementById('depositAmount').value = amount; 
-}
-
-async function fundWallet() {
-    const amount = Number(document.getElementById('depositAmount').value);
-    if (!amount || amount < 100) return appAlert("Minimum deposit amount is ₦100.", "Invalid Amount", true);
-
-    document.getElementById('generateLinkBtn').innerText = "Connecting to Gateway..."; 
-    document.getElementById('generateLinkBtn').disabled = true;
-
-    try {
-        const response = await fetch('/api/fund', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
-            body: JSON.stringify({ amount: amount }) 
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            window.location.href = result.checkoutUrl;
-        } else { 
-            appAlert(result.error, "Deposit Failed", true); 
-        }
-    } catch (error) { 
-        appAlert("Network error. Could not connect to payment gateway.", "Connection Error", true); 
-    }
-    
-    document.getElementById('generateLinkBtn').innerText = "Proceed to Pay"; 
-    document.getElementById('generateLinkBtn').disabled = false;
-}
-
-async function processWithdrawal() {
-    const amount = Number(document.getElementById('withdrawAmount').value);
-    const pin = document.getElementById('withdrawPin').value;
-
-    if (!amount || amount < 1000) return appAlert("Minimum withdrawal is ₦1,000.", "Invalid Amount", true);
-    if (!pin) return appAlert("Please enter your 4-digit security PIN.", "Security Required", true);
-
-    document.getElementById('withdrawBtn').innerText = "Processing Request..."; 
-    document.getElementById('withdrawBtn').disabled = true;
-
-    try {
-        const response = await fetch('/api/withdraw', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
-            body: JSON.stringify({ amount, pin }) 
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            appAlert("Your withdrawal request has been sent securely!", "Success");
-            document.getElementById('withdrawPin').value = "";
-            document.getElementById('withdrawAmount').value = "";
-            switchTab('dashboard'); 
-            loadDashboard();
-        } else { 
-            appAlert(result.error, "Withdrawal Failed", true); 
-        }
-    } catch (e) { 
-        appAlert("Network error. Please try again.", "Error", true); 
-    }
-    
-    document.getElementById('withdrawBtn').innerText = "Request Payout";
-    document.getElementById('withdrawBtn').disabled = false;
-}
-
-function buyDynamicShare(planId, planName, cost) {
-    appConfirm(`Are you sure you want to purchase the ${planName} plan for ₦${cost.toLocaleString()}?`, async () => {
-        try {
-            const res = await fetch('/api/buy-share', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
-                body: JSON.stringify({ planId: planId }) 
-            });
-            const result = await res.json();
-            
-            if (result.success) { 
-                appAlert("Asset purchased successfully. You can track its earnings in your Portfolio.", "Transaction Successful"); 
-                loadDashboard(); 
-                switchTab('portfolio'); 
-            } else { 
-                appAlert(result.error, "Purchase Failed", true); 
-            }
-        } catch (e) { 
-            appAlert("Transaction failed due to network error.", "Error", true); 
-        }
-    }, "Confirm Purchase");
 }
 
 // ==========================================
@@ -444,4 +236,140 @@ function renderPlans(plans) {
                     </div>
                 </div>
                 <div class="bg-[#061410] rounded-xl p-4 text-sm text-gray-300 border border-[#143D2F] mb-5 shadow-inner">
-                    <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2"><span class="font-medium text-[#4A7A66]">Daily Return:</span> <span class="font-bold text-white">₦${plan.dailyRet
+                    <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2"><span class="font-medium text-[#4A7A66]">Daily Return:</span> <span class="font-bold text-white">₦${plan.dailyReturn.toLocaleString()}</span></div>
+                    <div class="flex justify-between border-b border-[#143D2F] pb-2 mb-2"><span class="font-medium text-[#4A7A66]">Duration:</span> <span class="font-bold text-white">${plan.duration} Days</span></div>
+                    <div class="flex justify-between pt-1"><span class="font-bold text-neon">Total Payout:</span> <span class="font-black text-neon text-base">₦${(plan.cost + (plan.dailyReturn * plan.duration)).toLocaleString()}</span></div>
+                </div>
+                <button onclick="buyDynamicShare('${plan._id}', '${plan.name}', ${plan.cost})" class="w-full btn-neon py-3.5 rounded-full text-sm font-black shadow-lg uppercase tracking-wide">Purchase Plan</button>
+            </div>`).join('');
+    } else { plansList.innerHTML = `<p class="text-center text-[#4A7A66] font-medium mt-10">No investment plans available at the moment.</p>`; }
+}
+
+function renderPortfolio(investments) {
+    const invList = document.getElementById('investmentsList');
+    if (investments && investments.length > 0) {
+        invList.innerHTML = investments.map(inv => `
+            <div class="card rounded-2xl p-5 flex justify-between items-center border-l-4 border-l-[#00FF87] mb-3 shadow-md">
+                <div><h4 class="font-extrabold text-white text-base">${inv.shareName}</h4><p class="text-xs text-neon font-bold mt-1">+₦${inv.dailyReturn.toLocaleString()} Daily</p></div>
+                <div class="text-right"><p class="text-3xl font-black text-white">${inv.daysLeft}</p><p class="text-[9px] text-[#4A7A66] uppercase tracking-widest font-bold">Days Left</p></div>
+            </div>`).join('');
+    } else { invList.innerHTML = `<p class="text-center text-[#4A7A66] font-medium mt-10">You have no active assets in your portfolio.</p>`; }
+}
+
+// ==========================================
+// TRANSACTIONS (DEPOSIT, WITHDRAW, BUY)
+// ==========================================
+function setAmount(amount) { document.getElementById('depositAmount').value = amount; }
+
+async function fundWallet() {
+    const amount = Number(document.getElementById('depositAmount').value);
+    if (!amount || amount < 100) return appAlert("Minimum deposit amount is ₦100.", "Invalid Amount", true);
+
+    document.getElementById('generateLinkBtn').innerText = "Connecting to Gateway..."; 
+    document.getElementById('generateLinkBtn').disabled = true;
+
+    try {
+        const response = await fetch('/api/fund', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
+            body: JSON.stringify({ amount: amount }) 
+        });
+        const result = await response.json();
+        
+        if (result.success) window.location.href = result.checkoutUrl;
+        else appAlert(result.error, "Deposit Failed", true); 
+    } catch (error) { appAlert("Network error. Could not connect to payment gateway.", "Connection Error", true); }
+    
+    document.getElementById('generateLinkBtn').innerText = "Proceed to Pay"; 
+    document.getElementById('generateLinkBtn').disabled = false;
+}
+
+async function processWithdrawal() {
+    const amount = Number(document.getElementById('withdrawAmount').value);
+    const bank = document.getElementById('withdrawBank').value;
+    const accNo = document.getElementById('withdrawAccNo').value;
+    const accName = document.getElementById('withdrawAccName').value;
+
+    if (!amount || amount < 1000) return appAlert("Minimum withdrawal is ₦1,000.", "Invalid Amount", true);
+    if (!bank || !accNo || !accName) return appAlert("Please fill all banking details.", "Error", true);
+
+    document.getElementById('withdrawBtn').innerText = "Processing Request..."; 
+    document.getElementById('withdrawBtn').disabled = true;
+
+    try {
+        const response = await fetch('/api/withdraw', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
+            body: JSON.stringify({ amount, bankName: bank, accNo, accName }) 
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            appAlert("Your withdrawal request has been sent securely!", "Success");
+            document.getElementById('withdrawAmount').value = "";
+            switchTab('dashboard'); loadDashboard();
+        } else { appAlert(result.error, "Withdrawal Failed", true); }
+    } catch (e) { appAlert("Network error. Please try again.", "Error", true); }
+    
+    document.getElementById('withdrawBtn').innerText = "Request Payout";
+    document.getElementById('withdrawBtn').disabled = false;
+}
+
+function buyDynamicShare(planId, planName, cost) {
+    appConfirm(`Are you sure you want to purchase the ${planName} plan for ₦${cost.toLocaleString()}?`, async () => {
+        try {
+            const res = await fetch('/api/buy-share', { 
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
+                body: JSON.stringify({ planId: planId }) 
+            });
+            const result = await res.json();
+            
+            if (result.success) { 
+                appAlert("Asset purchased successfully. You can track its earnings in your Portfolio.", "Transaction Successful"); 
+                loadDashboard(); switchTab('portfolio'); 
+            } else { appAlert(result.error, "Purchase Failed", true); }
+        } catch (e) { appAlert("Transaction failed due to network error.", "Error", true); }
+    }, "Confirm Purchase");
+}
+
+// ==========================================
+// UTILITIES & SUPPORT & ADMIN
+// ==========================================
+async function adminAddPlan() {
+    const name = document.getElementById('newPlanName').value;
+    const icon = document.getElementById('newPlanIcon').value || "fa-gem";
+    const cost = Number(document.getElementById('newPlanCost').value);
+    const dailyReturn = Number(document.getElementById('newPlanDaily').value);
+    const duration = Number(document.getElementById('newPlanDuration').value);
+    
+    if(!name || !cost || !dailyReturn || !duration) return appAlert("Please fill all plan details.", "Admin Error", true);
+
+    try {
+        const res = await fetch('/api/admin/plan/add', { 
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` }, 
+            body: JSON.stringify({ name, cost, dailyReturn, duration, icon }) 
+        });
+        const result = await res.json();
+        
+        if (result.success) {
+            appAlert("New Investment Plan Published Successfully!", "Admin Action");
+            document.getElementById('newPlanName').value = ""; document.getElementById('newPlanCost').value = ""; document.getElementById('newPlanDaily').value = ""; document.getElementById('newPlanDuration').value = "";
+            loadDashboard();
+        } else { appAlert(result.error, "Admin Error", true); }
+    } catch (e) { appAlert("Error publishing plan to server.", "Error", true); }
+}
+
+function sendSupportMessage() {
+    const msg = document.getElementById('supportMessage').value;
+    const btn = document.getElementById('supportBtn');
+    
+    if (!msg.trim()) return appAlert("Please describe your issue before sending.", "Empty Message", true);
+
+    btn.innerText = "Sending Message..."; btn.disabled = true;
+    setTimeout(() => {
+        appAlert("Message sent to the support team. An agent will review your account shortly.", "Message Delivered");
+        document.getElementById('supportMessage').value = "";
+        btn.innerText = "Send Message"; btn.disabled = false;
+        switchTab('dashboard');
+    }, 1500);
+}
+
+function copyRefLink() { navigator.clipboard.writeText(document.getElementById('refLinkText').innerText); appAlert("Your referral link has been copied to your clipboard. Share it to start earning!", "Link Copied"); }
