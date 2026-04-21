@@ -26,7 +26,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 // Safety Checks: Warns the console if you forgot to add them in Render
 if (!MONGODB_URI) console.error("🚨 FATAL ERROR: MONGODB_URI is missing in Render environment!");
 if (!JWT_SECRET) console.error("🚨 FATAL ERROR: JWT_SECRET is missing in Render environment!");
-if (!SQUAD_SECRET_JEY) console.warn("⚠️ WARNING: SQUAD_SECRET is missing. Deposits will fail.");
+if (!SQUAD_SECRET_KEY) console.warn("⚠️ WARNING: SQUAD_SECRET is missing. Deposits will fail.");
 
 // ==========================================
 // DATABASE CONNECTION
