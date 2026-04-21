@@ -9,23 +9,23 @@ const User = require('./models/User');
 const Plan = require('./models/Plan'); 
 const Investment = require('./models/Investment'); 
 const Withdrawal = require('./models/Withdrawal'); 
-const Deposit = require('./models/Deposit'); 
 
 const app = express();
-// INCREASED JSON LIMIT TO 10MB TO ALLOW IMAGE UPLOADS
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json());
 app.use(cors());
 app.use(express.static('public')); 
 
 // ==========================================
 // SECURE ENVIRONMENT VARIABLES
 // ==========================================
+// The server pulls these securely from your Render dashboard
 const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.MONGODB_URI;
+const SQUAD_SECRET = process.env.SQUAD_SECRET;
 
 if (!MONGODB_URI) console.error("🚨 FATAL ERROR: MONGODB_URI is missing in Render environment!");
 if (!JWT_SECRET) console.error("🚨 FATAL ERROR: JWT_SECRET is missing in Render environment!");
+if (!SQUAD_SECRET) console.warn("⚠️ WARNING: SQUAD_SECRET is missing. SquadCo deposits will fail.");
 
 // ==========================================
 // DATABASE CONNECTION
@@ -100,24 +100,39 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
 // 2. TRANSACTION ROUTES
 // ==========================================
 
-// Manual Deposit - Receipt Upload
-app.post('/api/deposit-receipt', authenticateToken, async (req, res) => {
+// AUTOMATED SQUADCO DEPOSIT
+app.post('/api/fund', authenticateToken, async (req, res) => {
     try {
-        const { amount, receiptImage } = req.body;
+        const { amount } = req.body;
         const user = await User.findById(req.user.id);
 
-        const newDeposit = new Deposit({
-            userId: user._id,
-            userName: user.username,
-            amount: amount,
-            receiptImage: receiptImage
+        if (!SQUAD_SECRET) return res.status(500).json({ success: false, error: "Payment gateway is not configured on the server." });
+
+        // Call SquadCo API
+        const response = await fetch('https://api-d.squadco.com/transaction/initiate', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SQUAD_SECRET}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amount: amount * 100, // SquadCo uses Kobo (Multiply by 100)
+                email: user.email,
+                currency: 'NGN',
+                initiate_type: 'inline',
+                transaction_ref: 'SP_' + Date.now()
+            })
         });
+
+        const squadData = await response.json();
         
-        await newDeposit.save();
-        res.json({ success: true });
+        if (squadData && squadData.data && squadData.data.checkout_url) {
+            res.json({ success: true, checkoutUrl: squadData.data.checkout_url });
+        } else {
+            res.status(400).json({ success: false, error: "Could not generate payment link. Please check your SquadCo keys in Render." });
+        }
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: "Server error during upload." });
+        res.status(500).json({ success: false, error: "Server error connecting to payment gateway." });
     }
 });
 
